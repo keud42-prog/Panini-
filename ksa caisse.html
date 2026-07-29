@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>KSA — Caisse</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800;900&family=Barlow:wght@400;600;700&display=swap" rel="stylesheet"/>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+:root { --v: #7C3AED; --r: #E91E8C; --dark: #1A1A2E; --orange: #FF6B00; --green: #00C853; --bg: #F5F5F0; }
+html, body { height: 100%; overflow: hidden; }
+body { font-family: 'Barlow', sans-serif; background: var(--bg); color: var(--dark); display: flex; flex-direction: column; }
+
+.conn-bar { padding: 5px 16px; display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; flex-shrink: 0; }
+.conn-bar.connected { background: rgba(0,200,83,0.1); color: #00C853; }
+.conn-bar.disconnected { background: rgba(233,30,140,0.1); color: var(--r); }
+.conn-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.connected .conn-dot { background: #00C853; animation: pulse 1.5s infinite; }
+.disconnected .conn-dot { background: var(--r); }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+.header { background: var(--dark); padding: 14px 24px; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
+.logo { font-family: 'Barlow Condensed', sans-serif; font-weight: 900; font-size: 24px; letter-spacing: 2px; }
+.logo .k { color: var(--r); } .logo .s { color: var(--v); }
+.logo small { font-size: 9px; letter-spacing: 3px; color: rgba(255,255,255,0.35); display: block; }
+.header-title { text-align: center; }
+.header-title h1 { font-family: 'Barlow Condensed', sans-serif; font-weight: 900; font-size: 18px; text-transform: uppercase; letter-spacing: 3px; color: rgba(255,255,255,0.6); }
+.time { font-family: 'Barlow Condensed', sans-serif; font-weight: 900; font-size: 26px; color: white; text-align: right; }
+
+.stats-bar { background: white; border-bottom: 2px solid #eee; padding: 10px 24px; display: flex; gap: 24px; flex-shrink: 0; }
+.stat-box { flex: 1; background: #f8f8f8; border-radius: 10px; padding: 12px 16px; text-align: center; }
+.stat-num { font-family: 'Barlow Condensed', sans-serif; font-weight: 900; font-size: 30px; color: var(--r); }
+.stat-num.encaisse { color: var(--green); }
+.stat-lbl { font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: #999; margin-top: 2px; }
+
+.main { flex: 1; overflow-y: auto; padding: 16px 24px; }
+.main::-webkit-scrollbar { display: none; }
+
+.section-title { font-family: 'Barlow Condensed', sans-serif; font-weight: 900; font-size: 20px; text-transform: uppercase; color: var(--dark); margin-bottom: 12px; display: flex; align-items: center; gap: 10px; }
+.section-title .badge { background: var(--orange); color: white; font-size: 13px; padding: 2px 10px; border-radius: 20px; }
+
+.orders-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; margin-bottom: 28px; }
+
+.order-card { background: white; border-radius: 16px; overflow: hidden; border: 2px solid #eee; box-shadow: 0 2px 10px rgba(0,0,0,0.05); transition: all 0.2s; }
+.order-card.urgent { border-color: var(--orange); }
+.order-top { background: linear-gradient(90deg, var(--v), var(--r)); padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; }
+.order-num { font-family: 'Barlow Condensed', sans-serif; font-weight: 900; font-size: 32px; color: white; }
+.order-time { font-size: 11px; color: rgba(255,255,255,0.75); font-weight: 600; text-align: right; }
+.order-status { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: rgba(255,255,255,0.9); background: rgba(255,255,255,0.2); padding: 2px 8px; border-radius: 20px; margin-top: 2px; display: inline-block; }
+
+.order-body { padding: 14px 16px; }
+.order-item { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #f0f0f0; font-size: 13px; }
+.order-item:last-child { border-bottom: none; }
+.oi-qty { font-family: 'Barlow Condensed', sans-serif; font-weight: 900; color: var(--r); min-width: 24px; }
+.oi-name { flex: 1; color: #444; font-weight: 600; padding: 0 8px; }
+.oi-price { font-weight: 700; color: #666; white-space: nowrap; }
+
+.order-total { background: #f8f8f8; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; }
+.order-total-lbl { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 14px; text-transform: uppercase; color: #666; }
+.order-total-val { font-family: 'Barlow Condensed', sans-serif; font-weight: 900; font-size: 28px; color: var(--dark); }
+
+.order-actions { padding: 12px 16px; display: flex; gap: 8px; }
+.btn-encaisser { flex: 1; background: var(--green); color: white; border: none; border-radius: 10px; padding: 12px; font-family: 'Barlow Condensed', sans-serif; font-weight: 900; font-size: 15px; letter-spacing: 1px; text-transform: uppercase; cursor: pointer; transition: opacity 0.2s; }
+.btn-encaisser:hover { opacity: 0.85; }
+
+.empty-state { text-align: center; padding: 60px 20px; color: #ccc; }
+.empty-state .em { font-size: 48px; display: block; margin-bottom: 12px; }
+.empty-state p { font-size: 14px; font-weight: 600; }
+
+.encaisse-list { display: flex; flex-direction: column; gap: 8px; }
+.encaisse-item { background: white; border-radius: 10px; padding: 10px 16px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #eee; opacity: 0.7; }
+.encaisse-num { font-family: 'Barlow Condensed', sans-serif; font-weight: 900; font-size: 20px; color: var(--green); }
+.encaisse-info { flex: 1; padding: 0 12px; font-size: 12px; color: #999; }
+.encaisse-total { font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 16px; color: #666; }
+
+.new-notif { position: fixed; top: 0; left: 0; right: 0; background: var(--orange); padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; z-index: 200; transform: translateY(-100%); transition: transform 0.35s; }
+.new-notif.show { transform: translateY(0); }
+.nn-left { display: flex; align-items: center; gap: 12px; }
+.nn-icon { font-size: 26px; }
+.nn-title { font-family: 'Barlow Condensed', sans-serif; font-weight: 900; font-size: 18px; text-transform: uppercase; color: white; }
+.nn-sub { font-size: 12px; color: rgba(255,255,255,0.85); }
+.nn-num { font-family: 'Barlow Condensed', sans-serif; font-weight: 900; font-size: 40px; color: white; }
+</style>
+</head>
+<body>
+
+<div class="conn-bar disconnected" id="conn-bar"><div class="conn-dot"></div><span id="conn-text">Connexion au serveur...</span></div>
+
+<div class="header">
+  <div class="logo"><span class="k">K</span><span class="s">S</span>A<small>Alimentation</small></div>
+  <div class="header-title"><h1>💳 Caisse</h1></div>
+  <div class="time" id="clock">--:--</div>
+</div>
+
+<div class="stats-bar">
+  <div class="stat-box"><div class="stat-num" id="cnt-attente">0</div><div class="stat-lbl">À encaisser</div></div>
+  <div class="stat-box"><div class="stat-num encaisse" id="cnt-encaisse">0</div><div class="stat-lbl">Encaissées</div></div>
+  <div class="stat-box"><div class="stat-num" id="total-jour" style="color:var(--v);">0€</div><div class="stat-lbl">Total du jour</div></div>
+</div>
+
+<div class="main">
+  <div class="section-title">💰 Commandes à encaisser <span class="badge" id="badge-count">0</span></div>
+  <div class="orders-grid" id="orders-grid">
+    <div class="empty-state" style="grid-column:1/-1;"><span class="em">☕</span><p>Aucune commande en attente</p></div>
+  </div>
+
+  <div class="section-title">✅ Déjà encaissées aujourd'hui</div>
+  <div class="encaisse-list" id="encaisse-list">
+    <div class="empty-state"><span class="em">📋</span><p>Aucune commande encaissée pour l'instant</p></div>
+  </div>
+</div>
+
+<div class="new-notif" id="new-notif">
+  <div class="nn-left"><div class="nn-icon">🔔</div><div><div class="nn-title">Nouvelle commande à encaisser</div><div class="nn-sub" id="nn-sub">—</div></div></div>
+  <div class="nn-num" id="nn-num">—</div>
+</div>
+
+<script>
+let orders = [];
+let encaissees = [];
+let totalJour = 0;
+let ws = null;
+
+function updateClock(){document.getElementById('clock').textContent=new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});}
+setInterval(updateClock,1000); updateClock();
+
+function connect(){
+  try{
+    const wsProtocol = location.protocol === 'https:' ? 'wss://' : 'ws://';
+    ws = new WebSocket(wsProtocol + location.host);
+    ws.onopen = () => { document.getElementById('conn-bar').className='conn-bar connected'; document.getElementById('conn-text').textContent='Connecté — Caisse en direct'; };
+    ws.onclose = () => { document.getElementById('conn-bar').className='conn-bar disconnected'; document.getElementById('conn-text').textContent='Déconnecté — Reconnexion...'; setTimeout(connect,3000); };
+    ws.onmessage = (e) => {
+      const msg = JSON.parse(e.data);
+      if(msg.type === 'NEW_ORDER'){
+        orders.push(msg.order);
+        renderAll();
+        showNotif(msg.order);
+      }
+    };
+  }catch(e){}
+}
+connect();
+
+function encaisser(id){
+  const idx = orders.findIndex(o => o.id === id);
+  if(idx === -1) return;
+  const order = orders[idx];
+  orders.splice(idx,1);
+  encaissees.unshift(order);
+  totalJour += order.total || 0;
+  renderAll();
+}
+
+function renderAll(){
+  document.getElementById('cnt-attente').textContent = orders.length;
+  document.getElementById('cnt-encaisse').textContent = encaissees.length;
+  document.getElementById('total-jour').textContent = totalJour.toFixed(2).replace('.',',') + '€';
+  document.getElementById('badge-count').textContent = orders.length;
+
+  const grid = document.getElementById('orders-grid');
+  if(orders.length === 0){
+    grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1;"><span class="em">☕</span><p>Aucune commande en attente</p></div>';
+  } else {
+    grid.innerHTML = orders.map(o => {
+      const urgent = (Date.now() - o.createdAt) > 300000;
+      return `
+        <div class="order-card ${urgent?'urgent':''}">
+          <div class="order-top">
+            <div class="order-num">#${o.num}</div>
+            <div>
+              <div class="order-time">${new Date(o.createdAt).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</div>
+              <div class="order-status">${o.items.length} article${o.items.length>1?'s':''}</div>
+            </div>
+          </div>
+          <div class="order-body">
+            ${o.items.map(i => `<div class="order-item"><div class="oi-qty">${i.qty>0?i.qty+'x':''}</div><div class="oi-name">${i.name}</div><div class="oi-price">${i.price>0?(i.price*i.qty).toFixed(2).replace('.',',')+'€':''}</div></div>`).join('')}
+          </div>
+          <div class="order-total"><div class="order-total-lbl">Total</div><div class="order-total-val">${(o.total||0).toFixed(2).replace('.',',')}€</div></div>
+          <div class="order-actions"><button class="btn-encaisser" onclick="encaisser(${o.id})">💳 Encaisser</button></div>
+        </div>`;
+    }).join('');
+  }
+
+  const list = document.getElementById('encaisse-list');
+  if(encaissees.length === 0){
+    list.innerHTML = '<div class="empty-state"><span class="em">📋</span><p>Aucune commande encaissée pour l\\'instant</p></div>';
+  } else {
+    list.innerHTML = encaissees.slice(0,20).map(o => `
+      <div class="encaisse-item">
+        <div class="encaisse-num">#${o.num}</div>
+        <div class="encaisse-info">${o.items.length} article${o.items.length>1?'s':''} · ${new Date(o.createdAt).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</div>
+        <div class="encaisse-total">${(o.total||0).toFixed(2).replace('.',',')}€</div>
+      </div>`).join('');
+  }
+}
+
+function showNotif(order){
+  document.getElementById('nn-num').textContent = '#' + order.num;
+  document.getElementById('nn-sub').textContent = order.items.length + ' articles · ' + (order.total||0).toFixed(2).replace('.',',') + '€';
+  const el = document.getElementById('new-notif');
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 3500);
+}
+</script>
+</body>
+</html>

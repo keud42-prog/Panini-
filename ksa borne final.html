@@ -1,0 +1,994 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>KSA — Borne de commande</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800;900&family=Barlow:wght@400;600;700&display=swap" rel="stylesheet"/>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+:root { --v: #7C3AED; --vd: #5B21B6; --r: #E91E8C; --rd: #C2185B; --dark: #1A1A2E; --bg: #F5F5F0; --card: #fff; --border: #E0E0E0; --orange: #FF6B00; --green: #00C853; }
+html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
+body { min-height: 100vh; min-height: -webkit-fill-available; font-family: 'Barlow', sans-serif; background: var(--bg); color: var(--dark); display: flex; flex-direction: column; }
+.conn-bar { padding: 5px 16px; display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; flex-shrink: 0; }
+.conn-bar.connected { background: rgba(0,200,83,0.1); color: #00C853; }
+.conn-bar.disconnected { background: rgba(233,30,140,0.1); color: var(--r); }
+.conn-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.connected .conn-dot { background: #00C853; animation: pulse 1.5s infinite; }
+.disconnected .conn-dot { background: var(--r); }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+.header { background: var(--dark); padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
+.logo { font-family: 'Barlow Condensed', sans-serif; font-weight: 900; font-size: 24px; letter-spacing: 2px; }
+.logo .k { color: var(--r); } .logo .s { color: var(--v); } .logo .a { color: white; }
+.logo small { font-size: 9px; letter-spacing: 4px; color: rgba(255,255,255,0.35); display: block; }
+.basket-btn { background: var(--r); color: white; border: none; border-radius: 8px; padding: 10px 16px; font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 16px; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+.basket-count { background: white; color: var(--r); border-radius: 50%; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 900; }
+.cats { display: flex; background: white; border-bottom: 2px solid var(--border); flex-shrink: 0; overflow-x: auto; }
+.cats::-webkit-scrollbar { display: none; }
+.cat-btn { padding: 12px 18px; font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 14px; letter-spacing: 1px; text-transform: uppercase; color: #999; border: none; background: none; cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -2px; white-space: nowrap; transition: all 0.2s; flex-shrink: 0; }
+.cat-btn.active { color: var(--r); border-bottom-color: var(--r); }
+.menu-zone { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 14px; overscroll-behavior-y: contain; }
+.menu-zone::-webkit-scrollbar { display: none; }
+.cat-section { display: none; }
+.cat-section.active { display: block; }
+.items-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.item-card { background: var(--card); border-radius: 14px; overflow: hidden; border: 2px solid var(--border); cursor: pointer; transition: all 0.15s; }
+.item-card:active { transform: scale(0.97); border-color: var(--r); }
+
+/* ANIMATIONS */
+@keyframes bounceIn { 0%{transform:scale(0.9);opacity:0.6} 50%{transform:scale(1.03)} 100%{transform:scale(1);opacity:1} }
+@keyframes shake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-4px)} 40%{transform:translateX(4px)} 60%{transform:translateX(-3px)} 80%{transform:translateX(3px)} }
+@keyframes popIn { 0%{transform:scale(0)} 60%{transform:scale(1.15)} 100%{transform:scale(1)} }
+@keyframes flyToCart { 0%{transform:scale(1) translateY(0);opacity:1} 100%{transform:scale(0.3) translateY(-40px);opacity:0} }
+@keyframes checkPulse { 0%{transform:scale(0) rotate(-20deg)} 50%{transform:scale(1.3) rotate(8deg)} 100%{transform:scale(1) rotate(0)} }
+@keyframes slideInSection { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+@keyframes basketBump { 0%,100%{transform:scale(1)} 30%{transform:scale(1.35)} 60%{transform:scale(0.9)} }
+@keyframes glow { 0%,100%{box-shadow:0 0 0 rgba(233,30,140,0)} 50%{box-shadow:0 0 20px rgba(233,30,140,0.4)} }
+
+.item-card.tapped { animation: bounceIn 0.35s ease; }
+.suppl-card.selected, .suggest-card.selected, .sauce-chip.selected, .drink-card.selected { animation: popIn 0.35s cubic-bezier(0.34,1.56,0.64,1); }
+.basket-count.bump { animation: basketBump 0.45s cubic-bezier(0.34,1.56,0.64,1); }
+.upsell-sheet { animation: slideUp 0.35s cubic-bezier(0.34,1.56,0.64,1); }
+.step-fade { animation: slideInSection 0.4s cubic-bezier(0.22,1,0.36,1); }
+.confirm-check { animation: checkPulse 0.6s cubic-bezier(0.34,1.56,0.64,1); }
+.commander-btn:not(:disabled) { animation: glow 1.8s infinite; }
+.commander-btn:active:not(:disabled) { transform: scale(0.97); animation: none; }
+.item-add:active { transform: scale(0.94); }
+.menu-yes-btn:active, .upsell-confirm-btn:active, .btn-continue:active { transform: scale(0.96); }
+.sauce-max-msg-shake { animation: shake 0.4s ease; }
+
+/* Cascade d'apparition sur les grilles */
+@keyframes cascadeIn { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
+.items-grid .item-card { animation: cascadeIn 0.4s ease both; }
+.items-grid .item-card:nth-child(1){animation-delay:0.03s}
+.items-grid .item-card:nth-child(2){animation-delay:0.08s}
+.items-grid .item-card:nth-child(3){animation-delay:0.13s}
+.items-grid .item-card:nth-child(4){animation-delay:0.18s}
+.items-grid .item-card:nth-child(5){animation-delay:0.23s}
+.items-grid .item-card:nth-child(6){animation-delay:0.28s}
+.items-grid .item-card:nth-child(7){animation-delay:0.33s}
+
+/* Bouton catégorie qui rebondit à l'activation */
+@keyframes tabPop { 0%{transform:scale(1)} 40%{transform:scale(1.12)} 100%{transform:scale(1)} }
+.cat-btn.active { animation: tabPop 0.3s ease; }
+
+/* Item-card hover/press plus vivant */
+.item-card { transition: transform 0.15s cubic-bezier(0.34,1.56,0.64,1), border-color 0.15s, box-shadow 0.2s; }
+.item-card:active { transform: scale(0.95) !important; box-shadow: 0 2px 8px rgba(233,30,140,0.25); }
+
+/* Pulse discret sur badge nouveauté */
+@keyframes newPulse { 0%,100%{opacity:1} 50%{opacity:0.6} }
+.new-tag { animation: newPulse 2s ease infinite; }
+
+/* Notification plus rebondissante */
+@keyframes notifBounce { 0%{transform:translateX(-50%) translateY(-80px) scale(0.8)} 60%{transform:translateX(-50%) translateY(4px) scale(1.05)} 100%{transform:translateX(-50%) translateY(0) scale(1)} }
+.notif.show { animation: notifBounce 0.45s cubic-bezier(0.34,1.56,0.64,1); }
+
+/* Panier slide plus dynamique */
+.panier.open { animation: panierPop 0.35s cubic-bezier(0.22,1,0.36,1); }
+@keyframes panierPop { from{transform:translateY(100%)} to{transform:translateY(0)} }
+
+/* ===== CAROUSEL OFFRES ===== */
+.carousel-wrap { position: relative; overflow: hidden; background: var(--dark); padding: 8px 0 6px; }
+.carousel-track { display: flex; width: max-content; touch-action: pan-y; cursor: grab; }
+.carousel-wrap { touch-action: pan-y; }
+.carousel-track.dragging { cursor: grabbing; }
+.carousel-track.auto-scroll { animation: scrollCarousel 20s linear infinite; }
+@keyframes scrollCarousel {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+.carousel-slide { flex-shrink: 0; width: 160px; margin: 0 5px; border-radius: 10px; padding: 9px 12px; position: relative; overflow: hidden; cursor: pointer; transition: transform 0.15s; }
+.carousel-slide:active { transform: scale(0.95); }
+.cs-cta { font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 9px; letter-spacing: 0.5px; color: white; margin-top: 3px; opacity: 0.85; text-transform: uppercase; }
+.slide-1 { background: linear-gradient(120deg, #1a0d2e, #2d1060); }
+.slide-2 { background: linear-gradient(120deg, var(--vd), var(--rd)); }
+.slide-3 { background: linear-gradient(120deg, #1a2e1a, #0d3d1a); border: 1px solid rgba(200,230,201,0.2); }
+.slide-4 { background: linear-gradient(120deg, #1a0d2e, #0d1f3c); }
+.slide-5 { background: linear-gradient(120deg, #3d1a00, var(--orange)); }
+.cs-badge { display: inline-block; background: rgba(255,255,255,0.15); font-size: 8px; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase; padding: 2px 7px; border-radius: 20px; margin-bottom: 5px; }
+.cs-title { font-family: 'Barlow Condensed', sans-serif; font-weight: 900; font-size: 15px; text-transform: uppercase; color: white; line-height: 1.05; }
+.cs-desc { font-size: 9px; color: rgba(255,255,255,0.7); margin: 2px 0 5px; line-height: 1.3; }
+.cs-price { font-family: 'Barlow Condensed', sans-serif; font-weight: 900; font-size: 20px; color: white; }
+.carousel-dots { display: flex; justify-content: center; gap: 4px; margin-top: 6px; }
+.c-dot { width: 5px; height: 5px; border-radius: 50%; background: rgba(255,255,255,0.2); transition: all 0.3s; }
+.c-dot.active { background: var(--r); width: 14px; border-radius: 4px; }
+.item-card.wide { grid-column: 1/-1; display: flex; }
+.item-img-ph { width: 100%; height: 100px; display: flex; align-items: center; justify-content: center; font-size: 44px; }
+.item-card.wide .item-img-ph { width: 110px; height: auto; flex-shrink: 0; font-size: 36px; }
+.item-body { padding: 10px 12px 12px; flex: 1; }
+.item-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 6px; margin-bottom: 4px; }
+.item-name { font-family: 'Barlow Condensed', sans-serif; font-weight: 900; font-size: 17px; text-transform: uppercase; color: var(--dark); line-height: 1.1; }
+.item-price { font-family: 'Barlow Condensed', sans-serif; font-weight: 900; font-size: 19px; color: var(--r); flex-shrink: 0; }
+.item-desc { font-size: 10px; color: #888; text-transform: uppercase; line-height: 1.5; margin-bottom: 10px; }
+.item-add { width: 100%; background: var(--dark); color: white; border: none; border-radius: 8px; padding: 10px; font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 15px; cursor: pointer; }
+.new-tag { display: inline-block; background: var(--r); color: white; font-size: 9px; font-weight: 800; padding: 2px 8px; border-radius: 2px; text-transform: uppercase; margin-bottom: 4px; }
+.promo-banner { background: linear-gradient(90deg, var(--orange), #FF9800); border-radius: 10px; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.promo-banner-text { font-family: 'Barlow Condensed', sans-serif; font-weight: 900; font-size: 18px; color: white; text-transform: uppercase; }
+.promo-banner-sub { font-size: 10px; color: rgba(255,255,255,0.8); margin-top: 2px; font-weight: 600; }
+.promo-banner-price { font-family: 'Barlow Condensed', sans-serif; font-weight: 900; font-size: 36px; color: white; }
+.upsell-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.65); z-index: 150; display: none; align-items: flex-end; }
+.upsell-overlay.open { display: flex; }
+.upsell-sheet { background: white; border-radius: 24px 24px 0 0; padding: 20px 16px 24px; width: 100%; max-height: 88vh; overflow-y: auto; animation: slideUp 0.3s ease; position: relative; }
+.upsell-back-btn { position: sticky; top: 0; background: #f0f0f0; color: var(--dark); border: none; border-radius: 100px; padding: 8px 16px; font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 14px; cursor: pointer; z-index: 10; margin-bottom: 10px; transition: background 0.2s; }
+.upsell-back-btn:active { background: #e0e0e0; transform: scale(0.95); }
+@keyframes slideUp { from{transform:translateY(100%)} to{transform:translateY(0)} }
+.upsell-sheet::-webkit-scrollbar { display: none; }
+.upsell-header { text-align: center; margin-bottom: 14px; }
+.upsell-emoji { font-size: 32px; display: block; margin-bottom: 4px; }
+.upsell-title { font-family: 'Barlow Condensed', sans-serif; font-weight: 900; font-size: 22px; text-transform: uppercase; color: var(--dark); }
+.upsell-sub { font-size: 11px; color: #aaa; margin-top: 3px; }
+.upsell-item-name { background: var(--r); color: white; font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 15px; padding: 3px 14px; border-radius: 20px; display: inline-block; margin-top: 5px; }
+.menu-upsell-box { background: linear-gradient(120deg, #1a0d2e, #2d1060); border-radius: 16px; padding: 14px; margin-bottom: 14px; }
+.menu-upsell-title { font-family: 'Barlow Condensed', sans-serif; font-weight: 900; font-size: 20px; color: white; text-transform: uppercase; margin-bottom: 3px; }
+.menu-upsell-desc { font-size: 11px; color: rgba(255,255,255,0.55); margin-bottom: 12px; }
+.mui-row { display: flex; gap: 6px; margin-bottom: 12px; align-items: center; justify-content: center; }
+.mui { background: rgba(255,255,255,0.08); border-radius: 8px; padding: 8px 10px; text-align: center; }
+.mui-em { font-size: 20px; }
+.mui-lbl { font-size: 9px; color: rgba(255,255,255,0.55); margin-top: 2px; font-weight: 600; }
+.mui-sep { font-size: 18px; color: rgba(255,255,255,0.25); font-weight: 900; }
+.menu-yes-btn { width: 100%; background: var(--orange); color: white; border: none; border-radius: 10px; padding: 12px; font-family: 'Barlow Condensed', sans-serif; font-weight: 900; font-size: 17px; letter-spacing: 1px; text-transform: uppercase; cursor: pointer; }
+.menu-no-link { text-align: center; margin-top: 7px; font-size: 12px; color: #aaa; cursor: pointer; text-decoration: underline; padding: 4px; display: block; }
+.section-ttl { font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 12px; letter-spacing: 2px; text-transform: uppercase; padding-bottom: 4px; border-bottom: 2px solid; display: block; margin-bottom: 8px; margin-top: 10px; }
+.section-ttl.green { color: #388E3C; border-color: #C8E6C9; }
+.section-ttl.purple { color: var(--v); border-color: #EDE9FE; }
+.section-ttl.pink { color: var(--r); border-color: #F8BBD0; }
+.suppl-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin-bottom: 10px; }
+.suppl-card { background: #F1F8E9; border-radius: 10px; border: 2px solid #C8E6C9; cursor: pointer; text-align: center; padding: 8px 4px; transition: all 0.15s; }
+.suppl-card:active { transform: scale(0.95); }
+.suppl-card.selected { border-color: #388E3C; background: #E8F5E9; }
+.sup-em { font-size: 22px; display: block; margin-bottom: 3px; }
+.sup-name { font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 11px; text-transform: uppercase; color: var(--dark); }
+.sup-price { font-family: 'Barlow Condensed', sans-serif; font-weight: 900; font-size: 13px; color: #388E3C; margin-top: 1px; }
+.sup-check { color: #388E3C; font-size: 13px; display: none; margin-top: 1px; }
+.suppl-card.selected .sup-check { display: block; }
+.sauce-grid { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.sauce-chip { background: #f0f0f0; border: 2px solid var(--border); border-radius: 20px; padding: 6px 12px; font-size: 12px; font-weight: 700; color: var(--dark); cursor: pointer; transition: all 0.15s; }
+.sauce-chip.selected { background: var(--v); border-color: var(--v); color: white; }
+.suggest-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin-bottom: 10px; }
+.suggest-card { background: #f8f8f8; border-radius: 10px; border: 2px solid var(--border); cursor: pointer; text-align: center; padding: 8px 4px; transition: all 0.15s; }
+.suggest-card:active { transform: scale(0.95); }
+.suggest-card.selected { border-color: var(--green); background: #f0fff4; }
+.s-em { font-size: 24px; display: block; margin-bottom: 3px; }
+.s-name { font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 11px; text-transform: uppercase; color: var(--dark); }
+.s-price { font-family: 'Barlow Condensed', sans-serif; font-weight: 900; font-size: 13px; color: var(--r); margin-top: 1px; }
+.s-check { color: var(--green); font-size: 13px; display: none; margin-top: 1px; }
+.suggest-card.selected .s-check { display: block; }
+.btn-continue { width: 100%; background: var(--dark); color: white; border: none; border-radius: 10px; padding: 12px; font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 16px; cursor: pointer; margin-bottom: 6px; }
+.upsell-confirm-btn { width: 100%; background: var(--r); color: white; border: none; border-radius: 10px; padding: 14px; font-family: 'Barlow Condensed', sans-serif; font-weight: 900; font-size: 17px; letter-spacing: 1px; text-transform: uppercase; cursor: pointer; margin-top: 6px; }
+.overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 100; display: none; }
+.overlay.open { display: block; }
+.panier { position: fixed; bottom: 0; left: 0; right: 0; background: white; border-radius: 24px 24px 0 0; padding: 20px; z-index: 101; max-height: 85vh; display: flex; flex-direction: column; transform: translateY(100%); transition: transform 0.3s ease; }
+.panier.open { transform: translateY(0); }
+.panier-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.panier-title { font-family: 'Barlow Condensed', sans-serif; font-weight: 900; font-size: 24px; text-transform: uppercase; }
+.panier-close { background: #f0f0f0; border: none; border-radius: 50%; width: 34px; height: 34px; font-size: 16px; cursor: pointer; }
+.panier-items { overflow-y: auto; flex: 1; margin-bottom: 14px; }
+.panier-items::-webkit-scrollbar { display: none; }
+.panier-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); gap: 10px; }
+.pi-name { font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 13px; text-transform: uppercase; flex: 1; line-height: 1.2; }
+.pi-qty { display: flex; align-items: center; gap: 8px; }
+.pi-qty-btn { width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--border); background: white; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: 900; }
+.pi-qty-num { font-family: 'Barlow Condensed', sans-serif; font-weight: 900; font-size: 17px; min-width: 18px; text-align: center; }
+.pi-price { font-family: 'Barlow Condensed', sans-serif; font-weight: 900; font-size: 15px; color: var(--r); white-space: nowrap; }
+.panier-empty { text-align: center; padding: 36px 0; color: #bbb; }
+.panier-empty .em { font-size: 44px; display: block; margin-bottom: 10px; }
+.panier-total { background: #f8f8f8; border-radius: 10px; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+.panier-total-lbl { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 15px; text-transform: uppercase; color: #666; }
+.panier-total-val { font-family: 'Barlow Condensed', sans-serif; font-weight: 900; font-size: 30px; }
+.commander-btn { width: 100%; background: var(--r); color: white; border: none; border-radius: 12px; padding: 15px; font-family: 'Barlow Condensed', sans-serif; font-weight: 900; font-size: 20px; letter-spacing: 2px; text-transform: uppercase; cursor: pointer; }
+.commander-btn:disabled { background: #ccc; cursor: default; }
+.confirm-screen { position: fixed; inset: 0; background: var(--dark); z-index: 200; display: none; flex-direction: column; align-items: center; justify-content: center; padding: 32px; text-align: center; }
+.confirm-screen.open { display: flex; }
+.confirm-check { font-size: 72px; margin-bottom: 16px; animation: pop 0.4s ease; }
+@keyframes pop { 0%{transform:scale(0)} 70%{transform:scale(1.2)} 100%{transform:scale(1)} }
+.confirm-title { font-family: 'Barlow Condensed', sans-serif; font-weight: 900; font-size: 30px; text-transform: uppercase; color: white; margin-bottom: 6px; }
+.confirm-sub { font-size: 13px; color: rgba(255,255,255,0.45); margin-bottom: 28px; }
+.confirm-num-label { font-size: 11px; font-weight: 700; letter-spacing: 3px; text-transform: uppercase; color: rgba(255,255,255,0.35); margin-bottom: 8px; }
+.confirm-num { font-family: 'Barlow Condensed', sans-serif; font-weight: 900; font-size: 96px; color: var(--r); line-height: 1; margin-bottom: 6px; animation: popIn 0.5s cubic-bezier(0.34,1.56,0.64,1) 0.15s both; }
+.confirm-num-sub { font-size: 12px; color: rgba(255,255,255,0.3); margin-bottom: 28px; }
+.confirm-recap { background: rgba(255,255,255,0.06); border-radius: 12px; padding: 14px; width: 100%; max-width: 320px; margin-bottom: 28px; text-align: left; max-height: 200px; overflow-y: auto; }
+.confirm-recap-title { font-size: 10px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: rgba(255,255,255,0.35); margin-bottom: 8px; }
+.confirm-item { display: flex; justify-content: space-between; font-size: 12px; color: rgba(255,255,255,0.65); padding: 3px 0; font-weight: 600; gap: 8px; }
+.confirm-total-row { display: flex; justify-content: space-between; font-family: 'Barlow Condensed', sans-serif; font-weight: 900; font-size: 19px; color: white; border-top: 1px solid rgba(255,255,255,0.1); margin-top: 8px; padding-top: 8px; }
+.confirm-total-row span:last-child { color: var(--r); }
+.new-order-btn { background: white; color: var(--dark); border: none; border-radius: 12px; padding: 14px 40px; font-family: 'Barlow Condensed', sans-serif; font-weight: 900; font-size: 20px; letter-spacing: 2px; text-transform: uppercase; cursor: pointer; }
+
+/* ÉCRAN FERMÉ LE MARDI */
+.closed-screen { background: linear-gradient(160deg, #1a0d2e, #0D0D1A); z-index: 250; }
+.closed-icon { font-size: 80px; margin-bottom: 16px; animation: popIn 0.5s cubic-bezier(0.34,1.56,0.64,1); }
+.closed-sub { font-size: 15px; color: rgba(255,255,255,0.6); margin-bottom: 24px; line-height: 1.6; max-width: 300px; }
+.closed-sub strong { color: #FFB300; }
+.closed-info { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,179,0,0.25); border-radius: 14px; padding: 18px 22px; margin-bottom: 28px; width: 100%; max-width: 300px; }
+.closed-info-row { font-size: 14px; color: rgba(255,255,255,0.8); font-weight: 600; padding: 6px 0; }
+.closed-info-row strong { color: white; }
+.closed-banner { background: linear-gradient(90deg, #FFB300, #FF6B00); color: #1A1A2E; font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 12px; letter-spacing: 0.5px; text-align: center; padding: 8px 16px; }
+.notif { position: fixed; top: 76px; left: 50%; transform: translateX(-50%) translateY(-80px); background: var(--green); color: white; padding: 10px 20px; border-radius: 100px; font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 15px; z-index: 500; transition: transform 0.3s; white-space: nowrap; }
+.notif.show { transform: translateX(-50%) translateY(0); }
+
+/* ===== ÉCRAN DE VEILLE PLEIN ÉCRAN ===== */
+.idle-screen {
+  position: fixed; inset: 0; z-index: 2000;
+  background: #0D0D0D;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  cursor: pointer;
+  overflow: hidden;
+}
+.idle-track { position: relative; width: 100%; height: 100%; }
+.idle-slide {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 40px;
+  text-align: center;
+  opacity: 0;
+  animation: idleCycle 20s infinite;
+}
+.idle-slide.is-1 { background: linear-gradient(135deg, #1a0d2e, #2d1060); animation-delay: 0s; }
+.idle-slide.is-2 { background: linear-gradient(135deg, var(--vd), var(--rd)); animation-delay: 4s; }
+.idle-slide.is-3 { background: linear-gradient(135deg, #0d2e1a, #0d5c2e); animation-delay: 8s; }
+.idle-slide.is-4 { background: linear-gradient(135deg, #1a0d2e, #0d1f3c); animation-delay: 12s; }
+.idle-slide.is-5 { background: linear-gradient(135deg, #3d1a00, var(--orange)); animation-delay: 16s; }
+
+@keyframes idleCycle {
+  0% { opacity: 0; transform: scale(1.05); }
+  2% { opacity: 1; transform: scale(1); }
+  18% { opacity: 1; transform: scale(1); }
+  20% { opacity: 0; transform: scale(0.97); }
+  100% { opacity: 0; }
+}
+
+.idle-badge { display: inline-block; background: rgba(255,255,255,0.15); font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 16px; letter-spacing: 2px; text-transform: uppercase; padding: 8px 22px; border-radius: 100px; margin-bottom: 24px; }
+.idle-title { font-family: 'Barlow Condensed', sans-serif; font-weight: 900; font-size: 64px; text-transform: uppercase; color: white; line-height: 1.05; margin-bottom: 14px; }
+.idle-title .ac { color: var(--r); }
+.idle-desc { font-size: 20px; color: rgba(255,255,255,0.7); font-weight: 600; margin-bottom: 24px; max-width: 500px; }
+.idle-price { font-family: 'Barlow Condensed', sans-serif; font-weight: 900; font-size: 96px; color: white; text-shadow: 0 4px 20px rgba(0,0,0,0.3); }
+
+.idle-dots { position: absolute; bottom: 90px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; z-index: 10; }
+.idle-dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,0.25); }
+.idle-dot.active { background: white; width: 24px; border-radius: 4px; transition: all 0.3s; }
+
+.idle-tap-hint {
+  position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+  font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 18px;
+  letter-spacing: 1px; color: white;
+  background: rgba(255,255,255,0.12);
+  padding: 12px 28px; border-radius: 100px;
+  z-index: 10;
+  animation: tapPulse 1.6s ease infinite;
+}
+@keyframes tapPulse { 0%,100%{opacity:0.7;transform:translateX(-50%) scale(1)} 50%{opacity:1;transform:translateX(-50%) scale(1.05)} }
+</style>
+</head>
+<body>
+
+<!-- ===== ÉCRAN DE VEILLE / PUB PLEIN ÉCRAN ===== -->
+<div class="idle-screen" id="idle-screen" onclick="enterBorne()">
+  <div class="idle-track" id="idle-track">
+    <div class="idle-slide is-1">
+      <div class="idle-badge">⭐ Meilleure offre</div>
+      <div class="idle-title">Box <span class="ac">Complète</span></div>
+      <div class="idle-desc">Panini + Burger + Frites + Boisson</div>
+      <div class="idle-price">10€</div>
+    </div>
+    <div class="idle-slide is-2">
+      <div class="idle-badge">🔥 Chaque jour 12h-14h</div>
+      <div class="idle-title">Happy <span class="ac">Hour</span></div>
+      <div class="idle-desc">-20% sur toutes les Box</div>
+      <div class="idle-price">−20%</div>
+    </div>
+    <div class="idle-slide is-3">
+      <div class="idle-badge">🆕 Nouveau</div>
+      <div class="idle-title">Burger <span class="ac">Boursin</span></div>
+      <div class="idle-desc">Steak · Cheddar · Boursin Ail & Fines Herbes</div>
+      <div class="idle-price">4€50</div>
+    </div>
+    <div class="idle-slide is-4">
+      <div class="idle-badge">🎓 Étudiants</div>
+      <div class="idle-title">Menu <span class="ac">Étudiant</span></div>
+      <div class="idle-desc">Panini Simple + Boisson cannette</div>
+      <div class="idle-price">5€</div>
+    </div>
+    <div class="idle-slide is-5">
+      <div class="idle-badge">🍟 Astuce</div>
+      <div class="idle-title">Faites-en un <span class="ac">Menu</span></div>
+      <div class="idle-desc">Frites + boisson sur tout burger ou panini</div>
+      <div class="idle-price">+3€</div>
+    </div>
+  </div>
+  <div class="idle-dots" id="idle-dots"></div>
+  <div class="idle-tap-hint">👆 Touchez l'écran pour commander</div>
+</div>
+
+<!-- ===== BORNE DE COMMANDE (cachée derrière l'écran de veille) ===== -->
+<div id="borne-app" style="display:none;">
+<div class="conn-bar disconnected" id="conn-bar"><div class="conn-dot"></div><span id="conn-text">Connexion au serveur...</span></div>
+<div class="closed-banner" id="closed-banner" style="display:none;">😴 Nous sommes fermés aujourd'hui (mardi) — vous pouvez consulter le menu mais pas commander</div>
+<div class="header">
+  <div class="logo"><span class="k">K</span><span class="s">S</span><span class="a">A</span><small>Alimentation</small></div>
+  <button class="basket-btn" onclick="openPanier()">🛒 Panier <div class="basket-count" id="bcount">0</div></button>
+</div>
+
+<div class="cats">
+  <button class="cat-btn active" onclick="showCat('burgers',this)">🍔 Burgers</button>
+  <button class="cat-btn" onclick="showCat('paninis',this)">🥪 Paninis</button>
+  <button class="cat-btn" onclick="showCat('nuggets',this)">🍗 Nuggets</button>
+  <button class="cat-btn" onclick="showCat('boissons',this)">🥤 Boissons</button>
+  <button class="cat-btn" onclick="showCat('desserts',this)">🍰 Desserts</button>
+  <button class="cat-btn" onclick="showCat('box',this)">📦 Box</button>
+</div>
+<div class="menu-zone">
+  <div class="cat-section active" id="cat-burgers">
+    <div class="promo-banner"><div><div class="promo-banner-text">🍟 En faire un menu ?</div><div class="promo-banner-sub">Frites + Boisson pour seulement +3€</div></div><div class="promo-banner-price">+3€</div></div>
+    <div class="items-grid">
+      <div class="item-card" onclick="triggerUpsell('Cheese',2.50,'burger')"><img src="/mnt/user-data/uploads/Cheeseburger.jpeg" style="width:100%;height:100px;object-fit:cover;display:block;" alt="Cheese"/><div class="item-body"><div class="item-top"><div class="item-name">Cheese</div><div class="item-price">2€50</div></div><div class="item-desc">Steak · Cheddar · Oignons frits</div><button class="item-add">+ Ajouter</button></div></div>
+      <div class="item-card" onclick="triggerUpsell('Double Cheese',3.50,'burger')"><img src="/mnt/user-data/uploads/Double_cheeseburger.jpeg" style="width:100%;height:100px;object-fit:cover;display:block;" alt="Double Cheese"/><div class="item-body"><div class="item-top"><div class="item-name">Double Cheese</div><div class="item-price">3€50</div></div><div class="item-desc">Double steak · Cheddar · Oignons frits</div><button class="item-add">+ Ajouter</button></div></div>
+      <div class="item-card" onclick="triggerUpsell('Le Savoyard',3.50,'burger')"><img src="/mnt/user-data/uploads/Burger_Le_savoyard_raclette.jpeg" style="width:100%;height:100px;object-fit:cover;display:block;" alt="Savoyard"/><div class="item-body"><div class="item-top"><div class="item-name">Savoyard</div><div class="item-price">3€50</div></div><div class="item-desc">Steak · Charcuterie · Raclette ou Bleu</div><button class="item-add">+ Ajouter</button></div></div>
+      <div class="item-card" onclick="triggerUpsell('L\'Oriental',4.00,'burger')"><img src="/mnt/user-data/uploads/Beef_Burger_promotion_instagram_post.png" style="width:100%;height:100px;object-fit:cover;object-position:center 55%;display:block;" alt="Oriental"/><div class="item-body"><div class="item-top"><div class="item-name">L'Oriental</div><div class="item-price">4€</div></div><div class="item-desc">Steak · Fromage · Œuf · Slata mechouia</div><button class="item-add">+ Ajouter</button></div></div>
+      <div class="item-card wide" onclick="triggerUpsell('Burger Boursin',4.50,'burger')" style="border-color:#C8E6C9;"><img src="/mnt/user-data/uploads/IMG_0766.png" style="width:110px;height:auto;object-fit:cover;flex-shrink:0;display:block;" alt="Burger Boursin"/><div class="item-body"><div class="new-tag">🆕 Boursin®</div><div class="item-top"><div class="item-name">Burger Boursin</div><div class="item-price">4€50</div></div><div class="item-desc">Steak · Cheddar · Boursin Ail & Fines Herbes</div><button class="item-add">+ Ajouter</button></div></div>
+      <div class="item-card wide" onclick="triggerUpsell('Burger Chicken',4.50,'burger')"><div class="item-img-ph" style="background:linear-gradient(135deg,#fff8e1,#ffcc02);width:110px;height:auto;flex-shrink:0;font-size:36px;">🍗</div><div class="item-body"><div class="new-tag">🆕 Nouveau</div><div class="item-top"><div class="item-name">Burger Chicken</div><div class="item-price">4€50</div></div><div class="item-desc">Filet poulet croustillant · Salade · Sauce</div><button class="item-add">+ Ajouter</button></div></div>
+    </div>
+  </div>
+  <div class="cat-section" id="cat-paninis">
+    <div class="promo-banner"><div><div class="promo-banner-text">🍟 En faire un menu ?</div><div class="promo-banner-sub">Frites + Boisson pour seulement +3€</div></div><div class="promo-banner-price">+3€</div></div>
+    <div class="items-grid">
+      <div class="item-card" onclick="triggerUpsell('Panini Simple',3.50,'panini')"><div class="item-img-ph" style="background:linear-gradient(135deg,#fff3cd,#ffe082)">🥪</div><div class="item-body"><div class="item-top"><div class="item-name">Le Simple</div><div class="item-price">3€50</div></div><div class="item-desc">Sucuk · Charcuterie · Emmental</div><button class="item-add">+ Ajouter</button></div></div>
+      <div class="item-card" onclick="triggerUpsell('Panini Double',5.00,'panini')"><div class="item-img-ph" style="background:linear-gradient(135deg,#ffe0b2,#ffcc02)">🥪</div><div class="item-body"><div class="item-top"><div class="item-name">Le Double</div><div class="item-price">5€</div></div><div class="item-desc">Sucuk · Double charcuterie · Emmental</div><button class="item-add">+ Ajouter</button></div></div>
+      <div class="item-card" onclick="triggerUpsell('Panini Triple',6.00,'panini')"><div class="item-img-ph" style="background:linear-gradient(135deg,#fce4ec,#f48fb1)">🥪</div><div class="item-body"><div class="item-top"><div class="item-name">Le Triple</div><div class="item-price">6€</div></div><div class="item-desc">Sucuk · Triple charcuterie · Emmental</div><button class="item-add">+ Ajouter</button></div></div>
+      <div class="item-card" onclick="triggerUpsell('Panini 400',5.00,'panini')"><img src="/mnt/user-data/uploads/IMG_3899.jpeg" style="width:100%;height:100px;object-fit:cover;display:block;" alt="Le 400"/><div class="item-body"><div class="item-top"><div class="item-name">Le 400</div><div class="item-price">5€</div></div><div class="item-desc">Charcuterie · Emmental · Steak · Œuf</div><button class="item-add">+ Ajouter</button></div></div>
+      <div class="item-card" onclick="triggerUpsell('Panini 500',6.00,'panini')"><img src="/mnt/user-data/uploads/IMG_3899.jpeg" style="width:100%;height:100px;object-fit:cover;display:block;" alt="Le 500"/><div class="item-body"><div class="item-top"><div class="item-name">Le 500</div><div class="item-price">6€</div></div><div class="item-desc">Charcuterie · Sucuk · Emmental · Steak · Œuf</div><button class="item-add">+ Ajouter</button></div></div>
+      <div class="item-card" onclick="triggerUpsell('Panini 550',6.50,'panini')"><img src="/mnt/user-data/uploads/IMG_3899.jpeg" style="width:100%;height:100px;object-fit:cover;display:block;" alt="Le 550"/><div class="item-body"><div class="item-top"><div class="item-name">Le 550</div><div class="item-price">6€50</div></div><div class="item-desc">Charcuterie · Emmental · Double steak · Œuf</div><button class="item-add">+ Ajouter</button></div></div>
+      <div class="item-card" onclick="triggerUpsell('Panini 600',7.00,'panini')"><img src="/mnt/user-data/uploads/IMG_3899.jpeg" style="width:100%;height:100px;object-fit:cover;display:block;" alt="Le 600"/><div class="item-body"><div class="item-top"><div class="item-name">Le 600</div><div class="item-price">7€</div></div><div class="item-desc">Charcuterie · Sucuk · Emmental · Double steak · Œuf</div><button class="item-add">+ Ajouter</button></div></div>
+    </div>
+  </div>
+  <div class="cat-section" id="cat-nuggets">
+    <div class="items-grid">
+      <div class="item-card" onclick="triggerUpsell('6 Nuggets',3.50,'extra')"><div class="item-img-ph" style="background:linear-gradient(135deg,#fff8e1,#ffecb3)">🍗</div><div class="item-body"><div class="new-tag">🆕</div><div class="item-top"><div class="item-name">6 Nuggets</div><div class="item-price">3€50</div></div><div class="item-desc">Poulet croustillant · Sauce au choix</div><button class="item-add">+ Ajouter</button></div></div>
+      <div class="item-card" onclick="triggerUpsell('10 Nuggets',5.50,'extra')"><div class="item-img-ph" style="background:linear-gradient(135deg,#fff8e1,#ffe082)">🍗🍗</div><div class="item-body"><div class="new-tag">🆕</div><div class="item-top"><div class="item-name">10 Nuggets</div><div class="item-price">5€50</div></div><div class="item-desc">Poulet croustillant · 2 sauces au choix</div><button class="item-add">+ Ajouter</button></div></div>
+      <div class="item-card" onclick="triggerUpsell('Wings x6',4.00,'extra')"><div class="item-img-ph" style="background:linear-gradient(135deg,#ff8a65,#ff5722)">🔥</div><div class="item-body"><div class="new-tag">🆕</div><div class="item-top"><div class="item-name">Wings x6</div><div class="item-price">4€</div></div><div class="item-desc">Ailes croustillantes · Sauce BBQ</div><button class="item-add">+ Ajouter</button></div></div>
+      <div class="item-card" onclick="triggerUpsell('Wings x10',6.50,'extra')"><div class="item-img-ph" style="background:linear-gradient(135deg,#ff7043,#e64a19)">🔥🔥</div><div class="item-body"><div class="new-tag">🆕</div><div class="item-top"><div class="item-name">Wings x10</div><div class="item-price">6€50</div></div><div class="item-desc">Ailes croustillantes · 2 sauces</div><button class="item-add">+ Ajouter</button></div></div>
+    </div>
+  </div>
+  <div class="cat-section" id="cat-box">
+    <div class="items-grid">
+      <div class="item-card wide" onclick="triggerUpsell('Box Complète',10.00,'box')" style="border-color:#7C3AED;"><div class="item-img-ph" style="background:linear-gradient(135deg,#1A1A2E,#3a1a5e);width:110px;height:auto;flex-shrink:0;font-size:32px;">🔥</div><div class="item-body"><div class="new-tag" style="background:#7C3AED;">⭐ Meilleure offre</div><div class="item-top"><div class="item-name">Box Complète</div><div class="item-price">10€</div></div><div class="item-desc">Panini Simple + Cheese + Frites + Boisson</div><button class="item-add" style="background:#7C3AED;">+ Ajouter</button></div></div>
+      <div class="item-card" onclick="triggerUpsell('Box Burger',10.00,'box')"><div class="item-img-ph" style="background:linear-gradient(135deg,#fce4ec,#f8bbd0)">🍔🍟</div><div class="item-body"><div class="item-top"><div class="item-name">Box Burger</div><div class="item-price">10€</div></div><div class="item-desc">Burger + Frites + Boisson</div><button class="item-add">+ Ajouter</button></div></div>
+      <div class="item-card" onclick="triggerUpsell('Box Panini',10.00,'box')"><div class="item-img-ph" style="background:linear-gradient(135deg,#e8f5e9,#c8e6c9)">🥪🍟</div><div class="item-body"><div class="item-top"><div class="item-name">Box Panini</div><div class="item-price">10€</div></div><div class="item-desc">Panini + Frites + Boisson</div><button class="item-add">+ Ajouter</button></div></div>
+      <div class="item-card" onclick="triggerUpsell('Box Nuggets',10.00,'box')"><div class="item-img-ph" style="background:linear-gradient(135deg,#fff8e1,#ffecb3)">🍗🍟</div><div class="item-body"><div class="item-top"><div class="item-name">Box Nuggets</div><div class="item-price">10€</div></div><div class="item-desc">6 Nuggets + Frites + Sauce + Boisson</div><button class="item-add">+ Ajouter</button></div></div>
+      <div class="item-card wide" onclick="addDirect('Menu Étudiant',5.00)" style="border-color:#5B21B6;"><div class="item-img-ph" style="background:linear-gradient(135deg,#1a0d2e,#0d1f3c);width:110px;height:auto;flex-shrink:0;font-size:32px;">🎓</div><div class="item-body"><div class="new-tag" style="background:#5B21B6;">🎓 Étudiant</div><div class="item-top"><div class="item-name">Menu Étudiant</div><div class="item-price">5€</div></div><div class="item-desc">Panini Simple + Boisson cannette 33cl</div><button class="item-add" style="background:#5B21B6;">+ Ajouter</button></div></div>
+    </div>
+  </div>
+  <div class="cat-section" id="cat-boissons">
+    <div class="items-grid">
+      <div class="item-card" onclick="addDirect('Coca-Cola 33cl',1.50)"><div class="item-img-ph" style="background:linear-gradient(135deg,#ffebee,#ef9a9a)">🥤</div><div class="item-body"><div class="item-top"><div class="item-name">Coca-Cola</div><div class="item-price">1€50</div></div><div class="item-desc">Canette 33cl</div><button class="item-add">+ Ajouter</button></div></div>
+      <div class="item-card" onclick="addDirect('Orangina 33cl',1.50)"><div class="item-img-ph" style="background:linear-gradient(135deg,#fff8e1,#ffe082)">🍊</div><div class="item-body"><div class="item-top"><div class="item-name">Orangina</div><div class="item-price">1€50</div></div><div class="item-desc">Canette 33cl</div><button class="item-add">+ Ajouter</button></div></div>
+      <div class="item-card" onclick="addDirect('Ice Tea 33cl',1.50)"><div class="item-img-ph" style="background:linear-gradient(135deg,#e8f5e9,#a5d6a7)">🍵</div><div class="item-body"><div class="item-top"><div class="item-name">Ice Tea</div><div class="item-price">1€50</div></div><div class="item-desc">Canette 33cl</div><button class="item-add">+ Ajouter</button></div></div>
+      <div class="item-card" onclick="addDirect('Eau 33cl',1.00)"><div class="item-img-ph" style="background:linear-gradient(135deg,#e3f2fd,#90caf9)">💧</div><div class="item-body"><div class="item-top"><div class="item-name">Eau</div><div class="item-price">1€</div></div><div class="item-desc">Bouteille 33cl</div><button class="item-add">+ Ajouter</button></div></div>
+      <div class="item-card" onclick="addDirect('Frites seules',2.00)"><div class="item-img-ph" style="background:linear-gradient(135deg,#fff8e1,#ffee58)">🍟</div><div class="item-body"><div class="item-top"><div class="item-name">Frites seules</div><div class="item-price">2€</div></div><div class="item-desc">Frites maison</div><button class="item-add">+ Ajouter</button></div></div>
+    </div>
+  </div>
+  <div class="cat-section" id="cat-desserts">
+    <div class="items-grid">
+      <div class="item-card" onclick="addDirect('Tiramisu',3.00)"><div class="item-img-ph" style="background:linear-gradient(135deg,#efebe9,#d7ccc8)">☕</div><div class="item-body"><div class="item-top"><div class="item-name">Tiramisu</div><div class="item-price">3€</div></div><div class="item-desc">Dessert maison</div><button class="item-add">+ Ajouter</button></div></div>
+      <div class="item-card" onclick="addDirect('Tarte aux Daims',3.00)"><img src="/mnt/user-data/uploads/IMG_3885.png" style="width:100%;height:100px;object-fit:contain;background:white;display:block;" alt="Tarte aux Daims"/><div class="item-body"><div class="item-top"><div class="item-name">Tarte Daims</div><div class="item-price">3€</div></div><div class="item-desc">Tarte aux Daims maison</div><button class="item-add">+ Ajouter</button></div></div>
+      <div class="item-card" onclick="addDirect('Magnum',1.50)"><div class="item-img-ph" style="background:linear-gradient(135deg,#212121,#424242)">🍫</div><div class="item-body"><div class="item-top"><div class="item-name">Magnum</div><div class="item-price">1€50</div></div><div class="item-desc">Glace chocolat</div><button class="item-add">+ Ajouter</button></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- UPSELL -->
+<div class="upsell-overlay" id="upsell-overlay">
+  <div class="upsell-sheet">
+    <button class="upsell-back-btn" onclick="goBackStep()">← Retour</button>
+    <div class="upsell-header">
+      <span class="upsell-emoji">🤩</span>
+      <div class="upsell-title">Et avec ça ?</div>
+      <div class="upsell-sub">Vous avez sélectionné</div>
+      <div class="upsell-item-name" id="upsell-item-name">—</div>
+    </div>
+    <div id="step-menu">
+      <div class="menu-upsell-box">
+        <div class="menu-upsell-title">🍟 Transformez en menu !</div>
+        <div class="menu-upsell-desc">Frites maison + boisson pour seulement +3€</div>
+        <div class="mui-row">
+          <div class="mui"><span class="mui-em">🍟</span><div class="mui-lbl">Frites</div></div>
+          <div class="mui-sep">+</div>
+          <div class="mui"><span class="mui-em">🥤</span><div class="mui-lbl">Boisson</div></div>
+          <div class="mui-sep">=</div>
+          <div class="mui"><span style="font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:20px;color:#FF9800;">+3€</span><div class="mui-lbl">Seulement</div></div>
+        </div>
+        <button class="menu-yes-btn" onclick="addMenu()">✅ Oui, je prends le menu !</button>
+        <span class="menu-no-link" onclick="skipMenu()">Non merci, continuer sans menu</span>
+      </div>
+    </div>
+    <div id="step-boisson" style="display:none;">
+      <span class="section-ttl pink">🥤 Choisissez votre boisson</span>
+      <div class="suggest-grid">
+        <div class="suggest-card drink-card" onclick="selectDrink('Coca-Cola 33cl',0,this)"><span class="s-em">🥤</span><div class="s-name">Coca-Cola</div><div class="s-price">33cl</div><div class="s-check">✓</div></div>
+        <div class="suggest-card drink-card" onclick="selectDrink('Orangina 33cl',0,this)"><span class="s-em">🍊</span><div class="s-name">Orangina</div><div class="s-price">33cl</div><div class="s-check">✓</div></div>
+        <div class="suggest-card drink-card" onclick="selectDrink('Ice Tea 33cl',0,this)"><span class="s-em">🍵</span><div class="s-name">Ice Tea</div><div class="s-price">33cl</div><div class="s-check">✓</div></div>
+        <div class="suggest-card drink-card" onclick="selectDrink('Eau 33cl',0,this)"><span class="s-em">💧</span><div class="s-name">Eau</div><div class="s-price">33cl</div><div class="s-check">✓</div></div>
+      </div>
+      <div style="background:#FFF3E0;border:1.5px solid #FFCC80;border-radius:8px;padding:10px 12px;margin-bottom:10px;">
+        <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#E65100;margin-bottom:6px;">🍾 Ou une bouteille 50cl (+0,50€)</div>
+        <div class="suggest-grid" style="margin-bottom:0;">
+          <div class="suggest-card drink-card" onclick="selectDrink('Coca-Cola 50cl',0.50,this)"><span class="s-em">🥤</span><div class="s-name">Coca 50cl</div><div class="s-price">+0,50€</div><div class="s-check">✓</div></div>
+          <div class="suggest-card drink-card" onclick="selectDrink('Orangina 50cl',0.50,this)"><span class="s-em">🍊</span><div class="s-name">Orangina 50cl</div><div class="s-price">+0,50€</div><div class="s-check">✓</div></div>
+        </div>
+      </div>
+      <button class="btn-continue" onclick="confirmDrink()" id="drink-continue-btn" disabled>Continuer</button>
+      <span class="menu-no-link" onclick="skipDrink()">Non merci, continuer sans boisson</span>
+    </div>
+    <div id="step-suppl" style="display:none;">
+      <span class="section-ttl green">🧀 Ajouter des suppléments à votre burger/panini ? (+0,50€ chacun)</span>
+      <div class="suppl-grid">
+        <div class="suppl-card" onclick="toggleSuppl('bleu','Supplément Bleu',0.50,this)"><span class="sup-em">🔵</span><div class="sup-name">Bleu</div><div class="sup-price">+0,50€</div><div class="sup-check">✓</div></div>
+        <div class="suppl-card" onclick="toggleSuppl('raclette','Supplément Raclette',0.50,this)"><span class="sup-em">🧀</span><div class="sup-name">Raclette</div><div class="sup-price">+0,50€</div><div class="sup-check">✓</div></div>
+        <div class="suppl-card" onclick="toggleSuppl('emmental','Supplément Emmental',0.50,this)"><span class="sup-em">🟡</span><div class="sup-name">Emmental</div><div class="sup-price">+0,50€</div><div class="sup-check">✓</div></div>
+        <div class="suppl-card" onclick="toggleSuppl('boursin','Supplément Boursin',0.50,this)"><span class="sup-em">🌿</span><div class="sup-name">Boursin</div><div class="sup-price">+0,50€</div><div class="sup-check">✓</div></div>
+        <div class="suppl-card" onclick="toggleSuppl('mozza','Supplément Mozzarella',0.50,this)"><span class="sup-em">⚪</span><div class="sup-name">Mozzarella</div><div class="sup-price">+0,50€</div><div class="sup-check">✓</div></div>
+        <div class="suppl-card" onclick="toggleSuppl('chevre','Supplément Chèvre',0.50,this)"><span class="sup-em">🐐</span><div class="sup-name">Chèvre</div><div class="sup-price">+0,50€</div><div class="sup-check">✓</div></div>
+        <div class="suppl-card" onclick="toggleSuppl('cheddar','Supplément Cheddar',0.50,this)"><span class="sup-em">🟠</span><div class="sup-name">Cheddar</div><div class="sup-price">+0,50€</div><div class="sup-check">✓</div></div>
+        <div class="suppl-card" onclick="toggleSuppl('oeuf','Supplément Œuf',0.50,this)"><span class="sup-em">🥚</span><div class="sup-name">Œuf</div><div class="sup-price">+0,50€</div><div class="sup-check">✓</div></div>
+        <div class="suppl-card" onclick="toggleSuppl('piments','Supplément Piments',0.50,this)"><span class="sup-em">🌶️</span><div class="sup-name">Piments</div><div class="sup-price">+0,50€</div><div class="sup-check">✓</div></div>
+        <div class="suppl-card" onclick="toggleSuppl('chakchouka','Supplément Chakchouka',0.50,this)"><span class="sup-em">🍅</span><div class="sup-name">Chakchouka</div><div class="sup-price">+0,50€</div><div class="sup-check">✓</div></div>
+        <div class="suppl-card" onclick="toggleSuppl('slata','Supplément Slata Mechouia',0.50,this)"><span class="sup-em">🥗</span><div class="sup-name">Slata Mechouia</div><div class="sup-price">+0,50€</div><div class="sup-check">✓</div></div>
+        <div class="suppl-card" onclick="toggleSuppl('oignons','Supplément Oignons frits',0.50,this)"><span class="sup-em">🧅</span><div class="sup-name">Oignons frits</div><div class="sup-price">+0,50€</div><div class="sup-check">✓</div></div>
+      </div>
+      <span class="section-ttl pink">🌶️ Vos sauces — <span id="sauce-counter">0</span>/3 maximum</span>
+      <div id="sauce-max-msg" style="display:none;background:#FCE4EC;border:1.5px solid #F48FB1;border-radius:8px;padding:8px 12px;font-size:12px;font-weight:700;color:#C2185B;margin-bottom:8px;">⚠️ Maximum 3 sauces atteint !</div>
+      <div class="sauce-grid">
+        <div class="sauce-chip" onclick="selectSauce(this)">Mayonnaise</div>
+        <div class="sauce-chip" onclick="selectSauce(this)">Ketchup</div>
+        <div class="sauce-chip" onclick="selectSauce(this)">Tartare</div>
+        <div class="sauce-chip" onclick="selectSauce(this)">Burger</div>
+        <div class="sauce-chip" onclick="selectSauce(this)">Algérienne</div>
+        <div class="sauce-chip" onclick="selectSauce(this)">Harissa</div>
+        <div class="sauce-chip" onclick="selectSauce(this)">S. Blanche</div>
+        <div class="sauce-chip" onclick="selectSauce(this)">Curry</div>
+        <div class="sauce-chip" onclick="selectSauce(this)">Samouraï</div>
+        <div class="sauce-chip" onclick="selectSauce(this)">Barbecue</div>
+      </div>
+      <button class="btn-continue" onclick="goToSuggests()">Continuer →</button>
+    </div>
+    <div id="step-suggests" style="display:none;">
+      <span class="section-ttl purple">🍗 Des wings ou nuggets ?</span>
+      <div class="suggest-grid">
+        <div class="suggest-card" onclick="toggleSuggest('w6','Wings x6',4.00,this)"><span class="s-em">🔥</span><div class="s-name">Wings x6</div><div class="s-price">4€</div><div class="s-check">✓</div></div>
+        <div class="suggest-card" onclick="toggleSuggest('n6','6 Nuggets',3.50,this)"><span class="s-em">🍗</span><div class="s-name">6 Nuggets</div><div class="s-price">3€50</div><div class="s-check">✓</div></div>
+        <div class="suggest-card" onclick="toggleSuggest('n10','10 Nuggets',5.50,this)"><span class="s-em">🍗🍗</span><div class="s-name">10 Nuggets</div><div class="s-price">5€50</div><div class="s-check">✓</div></div>
+      </div>
+      <span class="section-ttl purple">🥤 Une boisson ou des frites ?</span>
+      <div class="suggest-grid">
+        <div class="suggest-card" onclick="toggleSuggest('fr','Frites seules',2.00,this)"><span class="s-em">🍟</span><div class="s-name">Frites seules</div><div class="s-price">2€</div><div class="s-check">✓</div></div>
+        <div class="suggest-card" onclick="toggleSuggest('bv','Boisson',1.50,this)"><span class="s-em">🥤</span><div class="s-name">Boisson</div><div class="s-price">1€50</div><div class="s-check">✓</div></div>
+      </div>
+      <span class="section-ttl purple">🍰 Un dessert pour finir ?</span>
+      <div class="suggest-grid">
+        <div class="suggest-card" onclick="toggleSuggest('ti','Tiramisu',3.00,this)"><span class="s-em">☕</span><div class="s-name">Tiramisu</div><div class="s-price">3€</div><div class="s-check">✓</div></div>
+        <div class="suggest-card" onclick="toggleSuggest('ta','Tarte Daims',3.00,this)"><span class="s-em">🥧</span><div class="s-name">Tarte Daims</div><div class="s-price">3€</div><div class="s-check">✓</div></div>
+        <div class="suggest-card" onclick="toggleSuggest('mg','Magnum',1.50,this)"><span class="s-em">🍫</span><div class="s-name">Magnum</div><div class="s-price">1€50</div><div class="s-check">✓</div></div>
+      </div>
+      <button class="upsell-confirm-btn" onclick="finishAndOrder()">✅ Valider ma commande</button>
+      <button class="btn-continue" style="margin-top:8px;" onclick="finishAndAddMore()">➕ Ajouter encore un article</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="overlay" onclick="closePanier()"></div>
+<div class="panier" id="panier">
+  <div class="panier-header"><div class="panier-title">🛒 Mon panier</div><button class="panier-close" onclick="closePanier()">✕</button></div>
+  <div class="panier-items" id="panier-items"><div class="panier-empty"><span class="em">🛒</span>Votre panier est vide</div></div>
+  <div class="panier-total" id="panier-total" style="display:none;"><div class="panier-total-lbl">Total</div><div class="panier-total-val" id="total-val">0€</div></div>
+  <button class="commander-btn" id="cmd-btn" onclick="commander()" disabled>Finaliser la commande</button>
+</div>
+
+<div class="confirm-screen" id="confirm-screen">
+  <div class="confirm-check">✅</div>
+  <div class="confirm-title">Commande envoyée !</div>
+  <div class="confirm-sub">Votre commande est en cours de préparation</div>
+  <div class="confirm-num-label">VOTRE NUMÉRO</div>
+  <div class="confirm-num" id="confirm-num">—</div>
+  <div class="confirm-num-sub">Montrez ce numéro au comptoir</div>
+  <div class="confirm-recap" id="confirm-recap"></div>
+  <button class="new-order-btn" onclick="newOrder()">Nouvelle commande</button>
+</div>
+
+<div class="confirm-screen closed-screen" id="closed-screen">
+  <div class="closed-icon">😴</div>
+  <div class="confirm-title" style="color:#FFB300;">Nous sommes fermés</div>
+  <div class="closed-sub">Le snack KSA Alimentation est fermé le <strong>mardi</strong></div>
+  <div class="closed-info">
+    <div class="closed-info-row">🗓️ Revenez dès <strong>mercredi</strong> pour commander !</div>
+    <div class="closed-info-row">📞 04 77 22 04 48</div>
+  </div>
+  <button class="new-order-btn" onclick="closeClosedScreen()">Continuer à consulter le menu</button>
+</div>
+
+<div class="notif" id="notif">✓ Ajouté !</div>
+
+<script>
+let cart=[], pendingItem=null, pendingType=null, supplements={}, selectedSauce=null, suggests={}, ws=null, currentOrderNum=null, localOrderCounter=0, serverSynced=false;
+function connect(){try{const wsProtocol=location.protocol==='https:'?'wss://':'ws://';ws=new WebSocket(wsProtocol+location.host);ws.onopen=()=>{document.getElementById('conn-bar').className='conn-bar connected';document.getElementById('conn-text').textContent='Connecté au serveur KSA';serverSynced=true;};ws.onclose=()=>{document.getElementById('conn-bar').className='conn-bar disconnected';document.getElementById('conn-text').textContent='Déconnecté — Reconnexion...';serverSynced=false;setTimeout(connect,3000);};ws.onmessage=(e)=>{const msg=JSON.parse(e.data);if(msg.type==='NEW_ORDER'&&msg.order)currentOrderNum=msg.order.num;};}catch(e){}}
+connect();
+
+// ===== ÉCRAN DE VEILLE =====
+(function initIdleScreen(){
+  const dotsWrap = document.getElementById('idle-dots');
+  const n = 5;
+  for(let i=0;i<n;i++){
+    const dot = document.createElement('div');
+    dot.className = 'idle-dot' + (i===0?' active':'');
+    dotsWrap.appendChild(dot);
+  }
+  const dots = dotsWrap.children;
+  let current = 0;
+  setInterval(()=>{
+    dots[current].classList.remove('active');
+    current = (current+1) % n;
+    dots[current].classList.add('active');
+  }, 4000);
+})();
+
+function enterBorne(){
+  const idle = document.getElementById('idle-screen');
+  idle.style.transition = 'opacity 0.4s ease, transform 0.4s ease';
+  idle.style.opacity = '0';
+  idle.style.transform = 'scale(1.05)';
+  setTimeout(()=>{
+    idle.style.display = 'none';
+    document.getElementById('borne-app').style.display = 'block';
+    resetIdleTimer();
+  }, 380);
+}
+
+// Retour automatique à l'écran de veille après 90s d'inactivité
+let idleTimer = null;
+function resetIdleTimer(){
+  clearTimeout(idleTimer);
+  idleTimer = setTimeout(()=>{
+    document.getElementById('borne-app').style.display = 'none';
+    const idle = document.getElementById('idle-screen');
+    idle.style.display = 'flex';
+    idle.style.opacity = '1';
+    idle.style.transform = 'scale(1)';
+    // Vider le panier pour le client suivant
+    cart = [];
+    if(typeof updateCart === 'function') updateCart();
+  }, 90000);
+}
+document.addEventListener('click', resetIdleTimer);
+document.addEventListener('touchstart', resetIdleTimer);
+
+// ===== CAROUSEL OFFRES (désactivé en semaine — à réactiver le week-end en remettant le HTML du carrousel) =====
+(function initCarousel(){
+  const track = document.getElementById('carousel-track');
+  if(!track) return; // Carrousel non présent dans le HTML actuellement
+  const dotsWrap = document.getElementById('carousel-dots');
+  const originalSlides = Array.from(track.children);
+  const n = originalSlides.length;
+  const slideWidth = 160 + 10; // largeur + marges (5px de chaque côté)
+
+  // Dupliquer les slides pour un défilement infini fluide
+  originalSlides.forEach(s => track.appendChild(s.cloneNode(true)));
+  originalSlides.forEach(s => track.appendChild(s.cloneNode(true)));
+
+  // Créer les points indicateurs
+  for(let i=0;i<n;i++){
+    const dot = document.createElement('div');
+    dot.className = 'c-dot' + (i===0?' active':'');
+    dotsWrap.appendChild(dot);
+  }
+  const dots = dotsWrap.children;
+
+  let position = 0; // position en px (négative = défilé vers la gauche)
+  let current = 0;
+  let isDragging = false;
+  let startX = 0;
+  let startPos = 0;
+  let autoTimer = null;
+  let dotTimer = null;
+
+  function setPosition(px, animate){
+    track.style.transition = animate ? 'transform 0.4s cubic-bezier(0.22,1,0.36,1)' : 'none';
+    track.style.transform = 'translateX(' + px + 'px)';
+  }
+
+  function normalizeLoop(){
+    const totalWidth = slideWidth * n;
+    // Si on a trop défilé vers la gauche (au-delà de 2x le set original), on revient au début silencieusement
+    if(Math.abs(position) >= totalWidth * 2){
+      position += totalWidth;
+      setPosition(position, false);
+    }
+    if(position > 0){
+      position -= totalWidth;
+      setPosition(position, false);
+    }
+  }
+
+  function updateDots(){
+    const idx = Math.abs(Math.round(position / slideWidth)) % n;
+    Array.from(dots).forEach(d=>d.classList.remove('active'));
+    dots[idx].classList.add('active');
+  }
+
+  function startAutoScroll(){
+    clearInterval(autoTimer);
+    autoTimer = setInterval(()=>{
+      position -= slideWidth;
+      setPosition(position, true);
+      updateDots();
+      setTimeout(normalizeLoop, 420);
+    }, 3500);
+  }
+  function stopAutoScroll(){ clearInterval(autoTimer); }
+
+  // ===== DRAG TACTILE =====
+  let dragMoved = false;
+
+  let startY = 0;
+  let dragDirectionLocked = null; // 'x' ou 'y'
+
+  track.addEventListener('touchstart', (e)=>{
+    dragMoved = false;
+    dragDirectionLocked = null;
+    stopAutoScroll();
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+    startPos = position;
+  }, {passive:true});
+
+  track.addEventListener('touchmove', (e)=>{
+    const dx = e.touches[0].clientX - startX;
+    const dy = e.touches[0].clientY - startY;
+
+    // Déterminer la direction du geste au premier mouvement significatif
+    if(dragDirectionLocked === null && (Math.abs(dx) > 8 || Math.abs(dy) > 8)){
+      dragDirectionLocked = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+      if(dragDirectionLocked === 'x'){
+        isDragging = true;
+        track.classList.add('dragging');
+        track.style.transition = 'none';
+      }
+    }
+
+    // Si c'est un scroll vertical, on laisse la page défiler normalement (on ne touche à rien)
+    if(dragDirectionLocked === 'y') return;
+
+    if(dragDirectionLocked === 'x'){
+      if(Math.abs(dx) > 5) dragMoved = true;
+      position = startPos + dx;
+      setPosition(position, false);
+    }
+  }, {passive:true});
+
+  track.addEventListener('touchend', ()=>{
+    if(dragDirectionLocked !== 'x'){ isDragging = false; startAutoScroll(); return; }
+    isDragging = false;
+    track.classList.remove('dragging');
+    // Snap sur le slide le plus proche
+    position = Math.round(position / slideWidth) * slideWidth;
+    setPosition(position, true);
+    updateDots();
+    setTimeout(normalizeLoop, 420);
+    setTimeout(startAutoScroll, 2000);
+  });
+
+  // ===== DRAG SOURIS (pour tester sur PC) =====
+  track.addEventListener('mousedown', (e)=>{
+    isDragging = true;
+    stopAutoScroll();
+    startX = e.clientX;
+    startPos = position;
+    track.classList.add('dragging');
+    track.style.transition = 'none';
+    e.preventDefault();
+  });
+  window.addEventListener('mousemove', (e)=>{
+    if(!isDragging) return;
+    const dx = e.clientX - startX;
+    position = startPos + dx;
+    setPosition(position, false);
+  });
+  window.addEventListener('mouseup', ()=>{
+    if(!isDragging) return;
+    isDragging = false;
+    track.classList.remove('dragging');
+    position = Math.round(position / slideWidth) * slideWidth;
+    setPosition(position, true);
+    updateDots();
+    setTimeout(normalizeLoop, 420);
+    setTimeout(startAutoScroll, 2000);
+  });
+
+  track.addEventListener('click', (e)=>{
+    if(dragMoved){
+      e.stopPropagation();
+      e.preventDefault();
+    }
+  }, true);
+
+  startAutoScroll();
+})();
+
+// Animation au tap sur une carte produit
+document.addEventListener('click', function(e){
+  const card = e.target.closest('.item-card');
+  if(card){
+    card.classList.remove('tapped');
+    void card.offsetWidth;
+    card.classList.add('tapped');
+  }
+});
+function showCat(n,b){
+  document.querySelectorAll('.cat-section').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.cat-btn').forEach(x=>x.classList.remove('active'));
+  const section = document.getElementById('cat-'+n);
+  section.classList.add('active');
+  b.classList.add('active');
+  // Relancer l'animation cascade des cartes
+  section.querySelectorAll('.item-card').forEach(c=>{
+    c.style.animation='none';
+    void c.offsetWidth;
+    c.style.animation='';
+  });
+}
+// Depuis le carrousel : simule le clic sur le bon onglet de catégorie
+function showCatFromCarousel(catName){
+  const btn = Array.from(document.querySelectorAll('.cat-btn')).find(b => b.getAttribute('onclick').includes("'"+catName+"'"));
+  if(btn) showCat(catName, btn);
+  document.querySelector('.menu-zone').scrollIntoView({behavior:'smooth', block:'start'});
+}
+function triggerUpsell(name,price,type){
+  pendingItem={name,price};pendingType=type;supplements={};selectedSauce=null;suggests={};
+  document.querySelectorAll('.suppl-card').forEach(c=>c.classList.remove('selected'));
+  document.querySelectorAll('.sauce-chip').forEach(c=>c.classList.remove('selected'));
+  document.getElementById('sauce-counter').textContent='0';
+  document.getElementById('sauce-max-msg').style.display='none';
+  document.querySelectorAll('.suggest-card').forEach(c=>c.classList.remove('selected'));
+  document.getElementById('upsell-item-name').textContent=name;
+  document.getElementById('step-boisson').style.display='none';
+
+  if(type==='box'){
+    addToCart(name,price);
+    document.getElementById('step-menu').style.display='none';
+    document.querySelectorAll('.drink-card').forEach(c=>c.classList.remove('selected'));
+    selectedDrink = null;
+    document.getElementById('drink-continue-btn').disabled = true;
+    document.getElementById('step-suppl').style.display='none';
+    document.getElementById('step-suggests').style.display='none';
+    document.getElementById('step-boisson').style.display='block';
+    document.getElementById('step-boisson').classList.remove('step-fade');
+    void document.getElementById('step-boisson').offsetWidth;
+    document.getElementById('step-boisson').classList.add('step-fade');
+  } else {
+    document.getElementById('step-suppl').style.display='none';
+    document.getElementById('step-suggests').style.display='none';
+    document.getElementById('step-menu').style.display='block';
+    document.getElementById('step-menu').classList.remove('step-fade');
+    void document.getElementById('step-menu').offsetWidth;
+    document.getElementById('step-menu').classList.add('step-fade');
+  }
+  document.getElementById('upsell-overlay').classList.add('open');
+}
+let selectedDrink = null;
+function showStep(id){
+  const el = document.getElementById(id);
+  el.style.display='block';
+  el.classList.remove('step-fade');
+  void el.offsetWidth;
+  el.classList.add('step-fade');
+}
+
+function goBackStep(){
+  const menuVisible = document.getElementById('step-menu').style.display === 'block';
+  const boissonVisible = document.getElementById('step-boisson').style.display === 'block';
+  const supplVisible = document.getElementById('step-suppl').style.display === 'block';
+  const suggestsVisible = document.getElementById('step-suggests').style.display === 'block';
+
+  if(menuVisible){
+    // Déjà à la première étape → on ferme complètement la popup
+    document.getElementById('upsell-overlay').classList.remove('open');
+    return;
+  }
+
+  if(boissonVisible){
+    // Retour au menu (uniquement si ce n'est pas une box, car les box n'ont pas de step-menu avant)
+    document.getElementById('step-boisson').style.display='none';
+    if(pendingType==='box'){
+      document.getElementById('upsell-overlay').classList.remove('open');
+    } else {
+      showStep('step-menu');
+    }
+    return;
+  }
+
+  if(supplVisible){
+    document.getElementById('step-suppl').style.display='none';
+    if(pendingType==='box'){
+      // Les box passent direct du choix boisson aux suppléments
+      showStep('step-boisson');
+    } else {
+      showStep('step-boisson');
+    }
+    return;
+  }
+
+  if(suggestsVisible){
+    document.getElementById('step-suggests').style.display='none';
+    if(pendingType==='panini'||pendingType==='box'){
+      showStep('step-suppl');
+    } else {
+      showStep('step-boisson');
+    }
+    return;
+  }
+}
+function addMenu(){
+  if(pendingItem){addToCart(pendingItem.name,pendingItem.price);}
+  // Montrer choix boisson au lieu d'ajouter direct la boisson générique
+  document.querySelectorAll('.drink-card').forEach(c=>c.classList.remove('selected'));
+  selectedDrink = null;
+  document.getElementById('drink-continue-btn').disabled = true;
+  document.getElementById('step-menu').style.display='none';
+  showStep('step-boisson');
+}
+function selectDrink(name, extraPrice, el){
+  document.querySelectorAll('.drink-card').forEach(c=>c.classList.remove('selected'));
+  el.classList.add('selected');
+  selectedDrink = { name, extraPrice };
+  document.getElementById('drink-continue-btn').disabled = false;
+  document.getElementById('drink-continue-btn').textContent = 'Continuer';
+}
+function skipDrink(){
+  selectedDrink = null;
+  document.getElementById('step-boisson').style.display='none';
+  nextStep();
+}
+function confirmDrink(){
+  if(selectedDrink){
+    if(pendingType==='box'){
+      addToCart('Boisson choisie : ' + selectedDrink.name, 0);
+      if(selectedDrink.extraPrice > 0){
+        addToCart('Suppl. bouteille 50cl', selectedDrink.extraPrice);
+      }
+    } else {
+      const menuTotal = 3.00 + selectedDrink.extraPrice;
+      const menuLabel = selectedDrink.extraPrice > 0
+        ? 'Menu 3€50 (Frites + ' + selectedDrink.name + ')'
+        : 'Menu 3€ (Frites + ' + selectedDrink.name + ')';
+      addToCart(menuLabel, menuTotal);
+    }
+  }
+  document.getElementById('step-boisson').style.display='none';
+  nextStep();
+}
+function skipMenu(){if(pendingItem)addToCart(pendingItem.name,pendingItem.price);nextStep();}
+function nextStep(){
+  document.getElementById('step-menu').style.display='none';
+  if(pendingType==='panini'||pendingType==='box'){
+    document.getElementById('step-suggests').style.display='none';
+    showStep('step-suppl');
+  } else {
+    document.getElementById('step-suppl').style.display='none';
+    showStep('step-suggests');
+  }
+}
+function toggleSuppl(key,name,price,el){if(supplements[key]){delete supplements[key];el.classList.remove('selected');}else{supplements[key]={name,price};el.classList.add('selected');}}
+function selectSauce(el){
+  const selected=document.querySelectorAll('.sauce-chip.selected');
+  if(el.classList.contains('selected')){
+    el.classList.remove('selected');
+  } else {
+    if(selected.length>=3){
+      const msg=document.getElementById('sauce-max-msg');
+      msg.style.display='block';
+      msg.classList.remove('sauce-max-msg-shake');
+      void msg.offsetWidth;
+      msg.classList.add('sauce-max-msg-shake');
+      setTimeout(()=>msg.style.display='none',2000);
+      return;
+    }
+    el.classList.add('selected');
+  }
+  const count=document.querySelectorAll('.sauce-chip.selected').length;
+  document.getElementById('sauce-counter').textContent=count;
+  document.getElementById('sauce-counter').style.color=count>=3?'#C2185B':'inherit';
+  selectedSauce=Array.from(document.querySelectorAll('.sauce-chip.selected')).map(c=>c.textContent).join(', ');
+}
+function goToSuggests(){
+  Object.values(supplements).forEach(s=>addToCart(s.name,s.price));
+  if(selectedSauce)addToCart('Sauce : '+selectedSauce,0);
+  document.getElementById('step-suppl').style.display='none';
+  showStep('step-suggests');
+}
+function toggleSuggest(key,name,price,el){if(suggests[key]){delete suggests[key];el.classList.remove('selected');}else{suggests[key]={name,price};el.classList.add('selected');}}
+function finishAndOrder(){
+  Object.values(suggests).forEach(i=>addToCart(i.name,i.price));
+  document.getElementById('upsell-overlay').classList.remove('open');
+  pendingItem=null;
+  openPanier();
+}
+function finishAndAddMore(){
+  Object.values(suggests).forEach(i=>addToCart(i.name,i.price));
+  document.getElementById('upsell-overlay').classList.remove('open');
+  pendingItem=null;
+  showNotif('Articles ajoutés ! Continuez votre commande');
+}
+function addDirect(name,price){addToCart(name,price);showNotif(name+' ajouté !');}
+function addToCart(name,price){const ex=cart.find(i=>i.name===name);if(ex)ex.qty++;else cart.push({name,price,qty:1});updateCart();}
+function updateCart(){
+  const total=cart.reduce((s,i)=>s+i.price*i.qty,0);
+  const count=cart.reduce((s,i)=>s+i.qty,0);
+  document.getElementById('bcount').textContent=count;
+  const bc=document.getElementById('bcount');
+  bc.classList.remove('bump');
+  void bc.offsetWidth;
+  bc.classList.add('bump');
+  const c=document.getElementById('panier-items');
+  if(cart.length===0){c.innerHTML='<div class="panier-empty"><span class="em">🛒</span>Votre panier est vide</div>';document.getElementById('panier-total').style.display='none';document.getElementById('cmd-btn').disabled=true;}
+  else{c.innerHTML=cart.map((item,idx)=>`<div class="panier-item"><div class="pi-name">${item.name}</div><div class="pi-qty"><button class="pi-qty-btn" onclick="changeQty(${idx},-1)">−</button><div class="pi-qty-num">${item.qty}</div><button class="pi-qty-btn" onclick="changeQty(${idx},1)">+</button></div><div class="pi-price">${item.price>0?(item.price*item.qty).toFixed(2).replace('.',',')+'€':'✓'}</div></div>`).join('');document.getElementById('panier-total').style.display='flex';document.getElementById('total-val').textContent=total.toFixed(2).replace('.',',')+'€';document.getElementById('cmd-btn').disabled=false;}
+}
+function changeQty(idx,d){cart[idx].qty+=d;if(cart[idx].qty<=0)cart.splice(idx,1);updateCart();}
+function openPanier(){document.getElementById('overlay').classList.add('open');document.getElementById('panier').classList.add('open');}
+function closePanier(){document.getElementById('overlay').classList.remove('open');document.getElementById('panier').classList.remove('open');}
+function isClosedToday(){
+  const jour = new Date().getDay(); // 0=dimanche, 1=lundi, 2=mardi...
+  return jour === 2; // Mardi
+}
+if(isClosedToday()){
+  document.getElementById('closed-banner').style.display = 'block';
+}
+function closeClosedScreen(){
+  document.getElementById('closed-screen').classList.remove('open');
+}
+
+function commander(){
+  if(isClosedToday()){
+    document.getElementById('closed-screen').classList.add('open');
+    return;
+  }
+  const total=cart.reduce((s,i)=>s+i.price*i.qty,0);
+  const items=cart.map(i=>({name:i.name,qty:i.qty,price:i.price}));
+  currentOrderNum=null;
+  if(ws&&ws.readyState===WebSocket.OPEN){
+    ws.send(JSON.stringify({type:'NEW_ORDER',items,total}));
+  }
+  closePanier();
+  setTimeout(()=>{
+    // Si le serveur n'a pas répondu avec un numéro (pas connecté), on génère un numéro local
+    if(!currentOrderNum){
+      localOrderCounter++;
+      currentOrderNum=String(localOrderCounter).padStart(2,'0');
+    }
+    document.getElementById('confirm-num').textContent=currentOrderNum;
+    document.getElementById('confirm-recap').innerHTML=`<div class="confirm-recap-title">Récapitulatif</div>${cart.map(i=>`<div class="confirm-item"><span>${i.qty>0?i.qty+'x ':' '}${i.name}</span><span>${i.price>0?(i.price*i.qty).toFixed(2).replace('.',',')+'€':'✓'}</span></div>`).join('')}<div class="confirm-total-row"><span>Total</span><span>${total.toFixed(2).replace('.',',')}€</span></div>`;
+    document.getElementById('confirm-screen').classList.add('open');
+  },400);
+}
+function newOrder(){cart=[];updateCart();document.getElementById('confirm-screen').classList.remove('open');}
+function showNotif(msg){const n=document.getElementById('notif');n.textContent='✓ '+msg;n.classList.add('show');setTimeout(()=>n.classList.remove('show'),2000);}
+</script>
+</div><!-- fin #borne-app -->
+</body>
+</html>
