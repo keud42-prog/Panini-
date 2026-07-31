@@ -1,0 +1,15 @@
+{
+  "name": "ksa-alimentation",
+  "version": "1.0.0",
+  "description": "Système de commande KSA Alimentation",
+  "main": "ksa_server.js",
+  "scripts": {
+    "start": "node ksa_server.js"
+  },
+  "dependencies": {
+    "ws": "^8.16.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
