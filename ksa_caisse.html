@@ -171,6 +171,8 @@ body { font-family: 'Barlow', sans-serif; background: var(--bg); color: var(--da
 .btn-close-day { margin-top:18px; background:var(--r); color:white; border:none; border-radius:12px; padding:16px 24px; font-family:'Barlow Condensed',sans-serif; font-weight:900; font-size:16px; text-transform:uppercase; letter-spacing:1px; cursor:pointer; display:block; }
 .clo-note { font-size:12px; color:#999; margin-top:10px; max-width:520px; line-height:1.5; }
 
+.fs-btn { width: 38px; height: 38px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.25); background: rgba(255,255,255,0.12); color: #fff; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; padding: 0; }
+.fs-btn:hover { background: rgba(255,255,255,0.22); }
 .new-notif { position: fixed; top: 0; left: 0; right: 0; background: var(--orange); padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; z-index: 200; transform: translateY(-100%); transition: transform 0.35s; }
 .new-notif.show { transform: translateY(0); }
 .nn-left { display: flex; align-items: center; gap: 12px; }
@@ -189,7 +191,10 @@ body { font-family: 'Barlow', sans-serif; background: var(--bg); color: var(--da
 <div class="header">
   <div class="logo"><span class="k">K</span><span class="s">S</span>A<small>Alimentation</small></div>
   <div class="header-title"><h1>💳 Caisse</h1></div>
-  <div class="time" id="clock">--:--</div>
+  <div style="display:flex;align-items:center;gap:12px;">
+    <button class="fs-btn" onclick="toggleFullscreen()" title="Plein écran" aria-label="Plein écran"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/></svg></button>
+    <div class="time" id="clock">--:--</div>
+  </div>
 </div>
 
 <div class="stats-bar">
@@ -355,6 +360,36 @@ function saveCatalog(){
 }
 
 function fmt(n){ return (Number(n)||0).toFixed(2).replace('.',',') + '€'; }
+// ---- Son d'alerte nouvelle commande ----
+let audioCtx = null;
+function unlockAudio(){ try{ if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)(); if(audioCtx.state==='suspended') audioCtx.resume(); }catch(e){} }
+document.addEventListener('click', unlockAudio);
+document.addEventListener('touchstart', unlockAudio);
+function playBeep(){
+  try{
+    if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+    if(audioCtx.state==='suspended') audioCtx.resume();
+    const t0 = audioCtx.currentTime;
+    [[880,0],[1320,0.16]].forEach(function(p){
+      const o=audioCtx.createOscillator(), g=audioCtx.createGain();
+      o.type='sine'; o.frequency.value=p[0];
+      o.connect(g); g.connect(audioCtx.destination);
+      const s=t0+p[1];
+      g.gain.setValueAtTime(0.0001,s);
+      g.gain.exponentialRampToValueAtTime(0.5,s+0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001,s+0.15);
+      o.start(s); o.stop(s+0.16);
+    });
+  }catch(e){}
+}
+function toggleFullscreen(){
+  const d = document, el = d.documentElement;
+  const isFs = d.fullscreenElement || d.webkitFullscreenElement;
+  try {
+    if(!isFs){ (el.requestFullscreen || el.webkitRequestFullscreen || el.webkitRequestFullScreen || function(){}).call(el); }
+    else { (d.exitFullscreen || d.webkitExitFullscreen || function(){}).call(d); }
+  } catch(e){}
+}
 function updateClock(){document.getElementById('clock').textContent=new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});}
 setInterval(updateClock,1000); updateClock();
 
@@ -392,7 +427,7 @@ function connect(){
       else if(msg.type === 'NEW_ORDER'){
         orders.push(msg.order);
         renderOrders();
-        if(!msg.order.paid) showNotif(msg.order);
+        if(!msg.order.paid){ showNotif(msg.order); playBeep(); }
       }
       else if(msg.type === 'ENCAISSE'){
         const o = orders.find(x => x.id === msg.id);
