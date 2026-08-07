@@ -121,6 +121,25 @@ body { font-family: 'Barlow', sans-serif; background: var(--bg); color: var(--da
 .tag-source { font-size: 9px; font-weight: 800; text-transform: uppercase; background: #eee; color: #888; padding: 1px 6px; border-radius: 10px; margin-left: 6px; }
 .encaisse-total { font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 16px; color: #666; }
 
+/* ---------- HISTORIQUE ---------- */
+.hist-toolbar { display: flex; gap: 10px; margin-bottom: 16px; }
+.hist-toolbar input { flex: 1; padding: 12px 14px; border: 2px solid #eee; border-radius: 10px; font-size: 15px; font-family: 'Barlow', sans-serif; }
+.hist-toolbar input:focus { outline: none; border-color: var(--v); }
+.hist-toolbar select { padding: 12px 14px; border: 2px solid #eee; border-radius: 10px; font-size: 14px; font-family: 'Barlow', sans-serif; font-weight: 700; color: #555; background: white; }
+.hist-day-lbl { font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: #aaa; margin: 18px 0 8px; }
+.hist-day-lbl:first-child { margin-top: 0; }
+.hist-row { background: white; border-radius: 12px; padding: 12px 16px; display: flex; align-items: center; gap: 12px; border: 2px solid #eee; margin-bottom: 8px; cursor: pointer; transition: border-color 0.15s; }
+.hist-row:hover { border-color: var(--v); }
+.hist-row-num { font-family: 'Barlow Condensed', sans-serif; font-weight: 900; font-size: 24px; color: var(--v); min-width: 54px; }
+.hist-row-info { flex: 1; font-size: 13px; color: #888; }
+.hist-row-info b { color: #333; font-size: 14px; }
+.hist-row-total { font-family: 'Barlow Condensed', sans-serif; font-weight: 900; font-size: 20px; color: var(--dark); }
+.hist-row-pay { font-size: 16px; }
+.hd-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f0f0f0; font-size: 14px; }
+.hd-item:last-child { border-bottom: none; }
+.hd-meta { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.hd-meta span { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; background: #f0f0f0; color: #666; padding: 4px 10px; border-radius: 20px; }
+
 /* ---------- PRODUITS ---------- */
 .prod-manage { padding: 12px 16px; }
 .prod-manage::-webkit-scrollbar { display: none; }
@@ -207,6 +226,7 @@ body { font-family: 'Barlow', sans-serif; background: var(--bg); color: var(--da
   <div class="tab active" id="tab-btn-vente" onclick="showTab('vente')">🛒 Vente</div>
   <div class="tab" id="tab-btn-commandes" onclick="showTab('commandes')">📋 Commandes <span id="tab-badge" style="display:none;background:var(--orange);color:#fff;border-radius:20px;padding:0 7px;font-size:12px;"></span></div>
   <div class="tab" id="tab-btn-produits" onclick="showTab('produits')">🏷️ Produits</div>
+  <div class="tab" id="tab-btn-historique" onclick="showTab('historique')">🕓 Historique</div>
   <div class="tab" id="tab-btn-cloture" onclick="showTab('cloture')">🔒 Clôture</div>
 </div>
 
@@ -243,6 +263,22 @@ body { font-family: 'Barlow', sans-serif; background: var(--bg); color: var(--da
       <div class="encaisse-list" id="encaisse-list">
         <div class="empty-state"><span class="em">📋</span><p>Aucune vente encaissée pour l'instant</p></div>
       </div>
+    </div>
+  </div>
+
+  <!-- ONGLET HISTORIQUE -->
+  <div class="tab-section" id="tab-historique">
+    <div class="cmd-wrap">
+      <div class="section-title">🕓 Historique des commandes</div>
+      <div class="hist-toolbar">
+        <input type="text" id="hist-search" placeholder="🔎 Rechercher un n° de commande..." oninput="renderHistorique()"/>
+        <select id="hist-filter" onchange="renderHistorique()">
+          <option value="all">Toutes</option>
+          <option value="caisse">Caisse</option>
+          <option value="borne">Borne</option>
+        </select>
+      </div>
+      <div id="historique-list"></div>
     </div>
   </div>
 
@@ -296,6 +332,18 @@ body { font-family: 'Barlow', sans-serif; background: var(--bg); color: var(--da
   </div>
 </div>
 
+<!-- Détail d'une commande de l'historique -->
+<div class="overlay" id="ov-hist-detail">
+  <div class="modal">
+    <div class="modal-hdr"><div class="modal-title" id="hd-title">Commande</div><button class="modal-close" onclick="closeOverlay('ov-hist-detail')">✕</button></div>
+    <div class="modal-body" id="hd-body"></div>
+    <div class="modal-foot">
+      <div class="edit-total" id="hd-total">0,00€</div>
+      <button class="btn-modal-cancel" onclick="closeOverlay('ov-hist-detail')">Fermer</button>
+    </div>
+  </div>
+</div>
+
 <div class="new-notif" id="new-notif">
   <div class="nn-left"><div class="nn-icon">🔔</div><div><div class="nn-title">Nouvelle commande à encaisser</div><div class="nn-sub" id="nn-sub">—</div></div></div>
   <div class="nn-num" id="nn-num">—</div>
@@ -308,6 +356,7 @@ body { font-family: 'Barlow', sans-serif; background: var(--bg); color: var(--da
 let orders = [];       // commandes actives du serveur (à encaisser)
 let encaissees = loadDay();       // ventes du jour, enregistrées sur la tablette
 let dayHistory = loadHistory();   // journées clôturées, archivées sur la tablette
+let allOrders = loadAllOrders();  // historique complet des commandes (persiste au-delà des clôtures)
 let totalJour = 0;
 let ws = null;
 let editing = null;
@@ -318,6 +367,13 @@ function loadDay(){ try{ const r=localStorage.getItem('ksa_day'); if(r) return J
 function saveDay(){ try{ localStorage.setItem('ksa_day', JSON.stringify(encaissees)); }catch(e){} }
 function loadHistory(){ try{ const r=localStorage.getItem('ksa_history'); if(r) return JSON.parse(r); }catch(e){} return []; }
 function saveHistory(){ try{ localStorage.setItem('ksa_history', JSON.stringify(dayHistory)); }catch(e){} }
+function loadAllOrders(){ try{ const r=localStorage.getItem('ksa_all_orders'); if(r) return JSON.parse(r); }catch(e){} return []; }
+function saveAllOrders(){ try{ localStorage.setItem('ksa_all_orders', JSON.stringify(allOrders.slice(0,2000))); }catch(e){} }
+function addToHistory(o){
+  if(!o || allOrders.some(x => x.id === o.id)) return;
+  allOrders.unshift(o);
+  saveAllOrders();
+}
 function recomputeTotal(){ totalJour = encaissees.reduce((s,o)=> s + (o.total||0), 0); }
 
 // Rayons
@@ -406,11 +462,12 @@ setInterval(updateClock,1000); updateClock();
 
 // ===================== ONGLETS =====================
 function showTab(name){
-  ['vente','commandes','produits','cloture'].forEach(t => {
+  ['vente','commandes','produits','historique','cloture'].forEach(t => {
     document.getElementById('tab-'+t).classList.toggle('active', t===name);
     document.getElementById('tab-btn-'+t).classList.toggle('active', t===name);
   });
   if(name === 'cloture') renderCloture();
+  if(name === 'historique') renderHistorique();
 }
 
 // ===================== CONNEXION =====================
@@ -430,7 +487,7 @@ function connect(){
         // On garde le registre local de la tablette. On ajoute seulement les ventes
         // connues du serveur qui manqueraient localement (jamais l'inverse) : ainsi
         // un redémarrage du serveur n'efface pas le total de la journée sur la tablette.
-        (msg.encaissees || []).forEach(o => { if(!encaissees.some(x => x.id === o.id)) encaissees.push(o); });
+        (msg.encaissees || []).forEach(o => { if(!encaissees.some(x => x.id === o.id)) encaissees.push(o); addToHistory(o); });
         encaissees.sort((a,b)=> (b.createdAt||0) - (a.createdAt||0));
         recomputeTotal(); saveDay();
         renderOrders();
@@ -444,6 +501,7 @@ function connect(){
         const o = orders.find(x => x.id === msg.id);
         if(o) o.paid = true;
         if(msg.order && !encaissees.some(x => x.id === msg.order.id)) encaissees.unshift(msg.order);
+        if(msg.order) addToHistory(msg.order);
         recomputeTotal(); saveDay();
         renderOrders();
       }
@@ -662,6 +720,51 @@ function renderOrders(){
   updateAlarm();
 }
 
+// ===================== HISTORIQUE =====================
+function renderHistorique(){
+  const list = document.getElementById('historique-list');
+  const q = (document.getElementById('hist-search').value || '').trim().toLowerCase();
+  const src = document.getElementById('hist-filter').value;
+  let items = allOrders.filter(o => {
+    if(src === 'caisse' && o.source !== 'caisse') return false;
+    if(src === 'borne' && o.source === 'caisse') return false;
+    if(q && String(o.num).toLowerCase().indexOf(q) === -1) return false;
+    return true;
+  });
+  if(items.length === 0){
+    list.innerHTML = '<div class="empty-state"><span class="em">🕓</span><p>Aucune commande dans l\'historique</p></div>';
+    return;
+  }
+  let html = '';
+  let lastDay = null;
+  items.slice(0, 300).forEach(o => {
+    const d = new Date(o.createdAt);
+    const dayKey = d.toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long'});
+    if(dayKey !== lastDay){ html += '<div class="hist-day-lbl">'+dayKey+'</div>'; lastDay = dayKey; }
+    const src2 = o.source === 'caisse' ? 'caisse' : 'borne';
+    const payIcon = o.payment === 'carte' ? '💳' : (o.payment === 'especes' ? '💵' : '');
+    html += '<div class="hist-row" onclick="openHistDetail('+o.id+')">'
+      + '<div class="hist-row-num">#'+o.num+'</div>'
+      + '<div class="hist-row-info"><b>'+o.items.length+' article'+(o.items.length>1?'s':'')+'</b> · '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})+' · <span class="tag-source">'+src2+'</span></div>'
+      + '<div class="hist-row-pay">'+payIcon+'</div>'
+      + '<div class="hist-row-total">'+fmt(o.total)+'</div>'
+      + '</div>';
+  });
+  list.innerHTML = html;
+}
+function openHistDetail(id){
+  const o = allOrders.find(x => x.id === id);
+  if(!o) return;
+  document.getElementById('hd-title').textContent = 'Commande #' + o.num;
+  const src2 = o.source === 'caisse' ? 'Vente caisse' : 'Commande borne';
+  const payLbl = o.payment === 'carte' ? '💳 Carte' : (o.payment === 'especes' ? '💵 Espèces' : '');
+  document.getElementById('hd-body').innerHTML =
+    '<div class="hd-meta"><span>'+src2+'</span><span>'+new Date(o.createdAt).toLocaleString('fr-FR')+'</span>'+(payLbl?'<span>'+payLbl+'</span>':'')+'</div>'
+    + o.items.map(i => '<div class="hd-item"><div>'+(i.qty>0?i.qty+'x ':'')+i.name+'</div><div>'+(i.price>0?fmt(i.price*i.qty):'')+'</div></div>').join('');
+  document.getElementById('hd-total').textContent = fmt(o.total);
+  document.getElementById('ov-hist-detail').classList.add('show');
+}
+
 // ===================== CLÔTURE =====================
 function cloRow(label, count, total){
   return '<div class="clo-row"><div class="clo-row-lbl">'+label+' <span class="clo-row-cnt">('+count+')</span></div><div class="clo-row-val">'+fmt(total)+'</div></div>';
@@ -771,6 +874,7 @@ function showToast(txt){
 }
 
 // ===================== INIT UI =====================
+encaissees.forEach(o => addToHistory(o)); // rattrape l'historique si la tablette avait déjà des ventes
 recomputeTotal();
 renderOrders();
 renderCatChips(); renderProducts(); renderTicket();
