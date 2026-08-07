@@ -29,7 +29,8 @@ body { min-height: 100vh; min-height: -webkit-fill-available; font-family: 'Barl
 .cats::-webkit-scrollbar { display: none; }
 .cat-btn { padding: 12px 18px; font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 14px; letter-spacing: 1px; text-transform: uppercase; color: #999; border: none; background: none; cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -2px; white-space: nowrap; transition: all 0.2s; flex-shrink: 0; }
 .cat-btn.active { color: var(--r); border-bottom-color: var(--r); }
-.menu-zone { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 18px; overscroll-behavior-y: contain; }
+#borne-app { flex: 1; min-height: 0; flex-direction: column; }
+.menu-zone { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 18px; overscroll-behavior-y: contain; }
 .menu-zone::-webkit-scrollbar { display: none; }
 .cat-section { display: none; }
 .cat-section.active { display: block; }
@@ -656,7 +657,7 @@ function enterBorne(){
   idle.style.transform = 'scale(1.05)';
   setTimeout(()=>{
     idle.style.display = 'none';
-    document.getElementById('borne-app').style.display = 'block';
+    document.getElementById('borne-app').style.display = 'flex';
     resetIdleTimer();
   }, 380);
 }
