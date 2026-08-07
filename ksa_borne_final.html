@@ -21,7 +21,9 @@ body { min-height: 100vh; min-height: -webkit-fill-available; font-family: 'Barl
 .logo { font-family: 'Barlow Condensed', sans-serif; font-weight: 900; font-size: 24px; letter-spacing: 2px; }
 .logo .k { color: var(--r); } .logo .s { color: var(--v); } .logo .a { color: white; }
 .logo small { font-size: 9px; letter-spacing: 4px; color: rgba(255,255,255,0.35); display: block; }
-.basket-btn { background: var(--r); color: white; border: none; border-radius: 8px; padding: 10px 16px; font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 16px; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+.basket-btn { background: var(--r); color: white; border: none; border-radius: 12px; padding: 14px 24px; font-family: 'Barlow Condensed', sans-serif; font-weight: 900; font-size: 22px; cursor: pointer; display: flex; align-items: center; gap: 10px; text-transform: uppercase; letter-spacing: 1px; }
+.basket-btn.want-order { animation: orderPulse 1.1s ease-in-out infinite; }
+@keyframes orderPulse { 0%,100%{ transform: scale(1); box-shadow: 0 0 0 0 rgba(233,30,140,0.55); } 50%{ transform: scale(1.09); box-shadow: 0 0 0 16px rgba(233,30,140,0); } }
 .basket-count { background: white; color: var(--r); border-radius: 50%; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 900; }
 .cats { display: flex; background: white; border-bottom: 2px solid var(--border); flex-shrink: 0; overflow-x: auto; }
 .cats::-webkit-scrollbar { display: none; }
@@ -377,7 +379,7 @@ body { min-height: 100vh; min-height: -webkit-fill-available; font-family: 'Barl
   <div class="logo"><span class="k">K</span><span class="s">S</span><span class="a">A</span><small>Alimentation</small></div>
   <div style="display:flex;align-items:center;gap:10px;">
     <button class="fs-btn" onclick="toggleFullscreen()" title="Plein écran" aria-label="Plein écran"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/></svg></button>
-    <button class="basket-btn" onclick="openPanier()">🛒 Panier <div class="basket-count" id="bcount">0</div></button>
+    <button class="basket-btn" onclick="openPanier()">🛒 <span id="basket-label">Panier</span> <div class="basket-count" id="bcount">0</div></button>
   </div>
 </div>
 
@@ -394,10 +396,10 @@ body { min-height: 100vh; min-height: -webkit-fill-available; font-family: 'Barl
   <div class="cat-section active" id="cat-burgers">
     <div class="promo-banner"><div><div class="promo-banner-text">🍟 En faire un menu ?</div><div class="promo-banner-sub">Frites + Boisson pour seulement +3€</div></div><div class="promo-banner-price">+3€</div></div>
     <div class="items-grid">
-      <div class="item-card" onclick="triggerUpsell('Cheese',3.50,'burger')"><img src="/cheese.jpg" style="width:100%;height:175px;object-fit:cover;display:block;" alt="Cheese"/><div class="item-body"><div class="item-top"><div class="item-name">Cheese</div><div class="item-price">3€50</div></div><div class="item-desc">Steak cheddar qui coule</div><button class="item-add">+ Ajouter</button></div></div>
-      <div class="item-card" onclick="triggerUpsell('Double Cheese',5.00,'burger')"><img src="/double.jpg" style="width:100%;height:175px;object-fit:cover;display:block;" alt="Double Cheese"/><div class="item-body"><div class="item-top"><div class="item-name">Double Cheese</div><div class="item-price">5€</div></div><div class="item-desc">Double steak · double cheddar</div><button class="item-add">+ Ajouter</button></div></div>
-      <div class="item-card" onclick="triggerUpsell('Le Savoyard',5.00,'burger')"><img src="/savoyard.jpg" style="width:100%;height:175px;object-fit:cover;display:block;" alt="Savoyard"/><div class="item-body"><div class="item-top"><div class="item-name">Savoyard</div><div class="item-price">5€</div></div><div class="item-desc">Raclette fondant bleu</div><button class="item-add">+ Ajouter</button></div></div>
-      <div class="item-card" onclick="triggerUpsell('L\'Oriental',5.00,'burger')"><img src="/oriental.jpg" style="width:100%;height:175px;object-fit:cover;object-position:center 55%;display:block;" alt="Oriental"/><div class="item-body"><div class="item-top"><div class="item-name">L'Oriental</div><div class="item-price">5€</div></div><div class="item-desc">Steak cheddar · œuf coulant · salata mechouia · chakchouka</div><button class="item-add">+ Ajouter</button></div></div>
+      <div class="item-card" onclick="triggerUpsell('Cheese',3.50,'burger')"><img src="/Chesse .jpeg" style="width:100%;height:175px;object-fit:cover;display:block;" alt="Cheese"/><div class="item-body"><div class="item-top"><div class="item-name">Cheese</div><div class="item-price">3€50</div></div><div class="item-desc">Steak cheddar qui coule</div><button class="item-add">+ Ajouter</button></div></div>
+      <div class="item-card" onclick="triggerUpsell('Double Cheese',5.00,'burger')"><img src="/double.jpeg" style="width:100%;height:175px;object-fit:cover;display:block;" alt="Double Cheese"/><div class="item-body"><div class="item-top"><div class="item-name">Double Cheese</div><div class="item-price">5€</div></div><div class="item-desc">Double steak · double cheddar</div><button class="item-add">+ Ajouter</button></div></div>
+      <div class="item-card" onclick="triggerUpsell('Le Savoyard',5.00,'burger')"><img src="/savoyard.jpeg" style="width:100%;height:175px;object-fit:cover;display:block;" alt="Savoyard"/><div class="item-body"><div class="item-top"><div class="item-name">Savoyard</div><div class="item-price">5€</div></div><div class="item-desc">Raclette fondant bleu</div><button class="item-add">+ Ajouter</button></div></div>
+      <div class="item-card" onclick="triggerUpsell('L\'Oriental',5.00,'burger')"><img src="/oriental.jpeg" style="width:100%;height:175px;object-fit:cover;object-position:center 55%;display:block;" alt="Oriental"/><div class="item-body"><div class="item-top"><div class="item-name">L'Oriental</div><div class="item-price">5€</div></div><div class="item-desc">Steak cheddar · œuf coulant · salata mechouia · chakchouka</div><button class="item-add">+ Ajouter</button></div></div>
       <div class="item-card wide" onclick="triggerUpsell('Burger Boursin',4.50,'burger')" style="border-color:#C8E6C9;"><img src="/mnt/user-data/uploads/IMG_0766.png" style="width:150px;height:auto;object-fit:cover;flex-shrink:0;display:block;" alt="Burger Boursin"/><div class="item-body"><div class="new-tag">🆕 Boursin®</div><div class="item-top"><div class="item-name">Burger Boursin</div><div class="item-price">4€50</div></div><div class="item-desc">Steak · Cheddar · Boursin Ail & Fines Herbes</div><button class="item-add">+ Ajouter</button></div></div>
       <div class="item-card wide" onclick="triggerUpsell('Burger Chicken',4.50,'burger')"><div class="item-img-ph" style="background:linear-gradient(135deg,#fff8e1,#ffcc02);width:150px;height:auto;flex-shrink:0;font-size:36px;">🍗</div><div class="item-body"><div class="new-tag">🆕 Nouveau</div><div class="item-top"><div class="item-name">Burger Chicken</div><div class="item-price">4€50</div></div><div class="item-desc">Filet poulet croustillant · Salade · Sauce</div><button class="item-add">+ Ajouter</button></div></div>
     </div>
@@ -1110,6 +1112,8 @@ function updateCart(){
   const total=cart.reduce((s,i)=>s+i.price*i.qty,0);
   const count=cart.reduce((s,i)=>s+i.qty,0);
   document.getElementById('bcount').textContent=count;
+  const bb=document.querySelector('.basket-btn'), bl=document.getElementById('basket-label');
+  if(bb){ if(cart.length>0){ bb.classList.add('want-order'); if(bl) bl.textContent='Commander'; } else { bb.classList.remove('want-order'); if(bl) bl.textContent='Panier'; } }
   const bc=document.getElementById('bcount');
   bc.classList.remove('bump');
   void bc.offsetWidth;

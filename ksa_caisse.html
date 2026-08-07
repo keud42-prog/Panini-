@@ -370,17 +370,28 @@ function playBeep(){
     if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)();
     if(audioCtx.state==='suspended') audioCtx.resume();
     const t0 = audioCtx.currentTime;
-    [[880,0],[1320,0.16]].forEach(function(p){
+    const notes=[[988,0],[988,0.22],[1319,0.44]]; // ding ding dong, plus fort
+    notes.forEach(function(p){
       const o=audioCtx.createOscillator(), g=audioCtx.createGain();
-      o.type='sine'; o.frequency.value=p[0];
+      o.type='triangle'; o.frequency.value=p[0];
       o.connect(g); g.connect(audioCtx.destination);
       const s=t0+p[1];
       g.gain.setValueAtTime(0.0001,s);
-      g.gain.exponentialRampToValueAtTime(0.5,s+0.02);
-      g.gain.exponentialRampToValueAtTime(0.0001,s+0.15);
-      o.start(s); o.stop(s+0.16);
+      g.gain.exponentialRampToValueAtTime(0.95,s+0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001,s+0.21);
+      o.start(s); o.stop(s+0.22);
     });
   }catch(e){}
+}
+// ---- Alarme en boucle jusqu'à prise en charge ----
+let alarmTimer = null;
+function anyPending(){ return orders.some(function(o){ return o.status==='attente' && !o.paid; }); }
+function updateAlarm(){
+  if(anyPending()){
+    if(!alarmTimer){ playBeep(); alarmTimer = setInterval(playBeep, 2200); }
+  } else if(alarmTimer){
+    clearInterval(alarmTimer); alarmTimer = null;
+  }
 }
 function toggleFullscreen(){
   const d = document, el = d.documentElement;
@@ -427,7 +438,7 @@ function connect(){
       else if(msg.type === 'NEW_ORDER'){
         orders.push(msg.order);
         renderOrders();
-        if(!msg.order.paid){ showNotif(msg.order); playBeep(); }
+        if(!msg.order.paid) showNotif(msg.order);
       }
       else if(msg.type === 'ENCAISSE'){
         const o = orders.find(x => x.id === msg.id);
@@ -648,6 +659,7 @@ function renderOrders(){
   }
 
   renderCloture();
+  updateAlarm();
 }
 
 // ===================== CLÔTURE =====================
