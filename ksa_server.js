@@ -1,14 +1,32 @@
 // ============================================
 // KSA Alimentation — Serveur de commandes
 // ============================================
-// Installation : npm install ws
+// Installation : npm install ws twilio
 // Lancement    : node ksa_server.js
+//
+// Variables d'environnement nécessaires pour le SMS (voir .env.example) :
+//   TWILIO_ACCOUNT_SID
+//   TWILIO_AUTH_TOKEN
+//   TWILIO_VERIFY_SERVICE_SID
+// Sur Render : à ajouter dans Service → Environment (pas besoin de fichier .env en prod)
 // ============================================
 
 const http = require('http');
 const WebSocket = require('ws');
 const fs = require('fs');
 const path = require('path');
+
+let twilioClient = null;
+try {
+  if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
+    twilioClient = require('twilio')(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+  } else {
+    console.warn('⚠️  Variables Twilio absentes — la confirmation SMS sera indisponible tant qu\'elles ne sont pas configurées.');
+  }
+} catch (e) {
+  console.warn('⚠️  Module "twilio" introuvable — lance "npm install twilio". SMS désactivé pour le moment.');
+}
+const VERIFY_SERVICE_SID = process.env.TWILIO_VERIFY_SERVICE_SID;
 
 const PORT = process.env.PORT || 3000;
 
@@ -39,19 +57,109 @@ const PAGES = {
   borne: findHtml('borne'),
   cuisine: findHtml('cuisine'),
   caisse: findHtml('caisse'),
+  app: findHtml('app'),        // ksa_app_preview.html — le site pour commander de chez soi
 };
 
 // --------------------------------------------
-// Serveur HTTP (sert les pages)
+// SMS : envoi + vérification du code (Twilio Verify)
+// --------------------------------------------
+
+// Convertit un numéro français saisi ("06 12 34 56 78"...) en format E.164 (+33612345678)
+function toE164(tel) {
+  const digits = (tel || '').replace(/\D/g, '');
+  if (!digits) return null;
+  if (digits.startsWith('33') && digits.length === 11) return '+' + digits;
+  if (digits.startsWith('0') && digits.length === 10) return '+33' + digits.slice(1);
+  if ((tel || '').trim().startsWith('+')) return tel.trim();
+  return null;
+}
+
+// Anti-abus simple : max 5 envois par numéro toutes les 10 minutes (en mémoire)
+const smsSendLog = new Map(); // phone -> [timestamps]
+function isRateLimited(phone) {
+  const now = Date.now();
+  const windowMs = 10 * 60 * 1000;
+  const list = (smsSendLog.get(phone) || []).filter(t => now - t < windowMs);
+  smsSendLog.set(phone, list);
+  return list.length >= 5;
+}
+function recordSend(phone) {
+  const list = smsSendLog.get(phone) || [];
+  list.push(Date.now());
+  smsSendLog.set(phone, list);
+}
+
+function readJsonBody(req) {
+  return new Promise((resolve, reject) => {
+    let body = '';
+    req.on('data', chunk => {
+      body += chunk;
+      if (body.length > 1e6) { req.destroy(); reject(new Error('Payload trop volumineux')); }
+    });
+    req.on('end', () => {
+      try { resolve(body ? JSON.parse(body) : {}); }
+      catch (e) { reject(e); }
+    });
+    req.on('error', reject);
+  });
+}
+function sendJson(res, status, obj) {
+  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
+  res.end(JSON.stringify(obj));
+}
+
+async function handleSmsSend(req, res) {
+  let body;
+  try { body = await readJsonBody(req); } catch { return sendJson(res, 400, { error: 'Requête invalide.' }); }
+  const phone = toE164(body.tel);
+  if (!phone) return sendJson(res, 400, { error: 'Numéro de téléphone invalide.' });
+  if (isRateLimited(phone)) return sendJson(res, 429, { error: 'Trop de tentatives, réessayez dans quelques minutes.' });
+  if (!twilioClient || !VERIFY_SERVICE_SID) return sendJson(res, 500, { error: 'Service SMS non configuré sur le serveur.' });
+  try {
+    recordSend(phone);
+    const verification = await twilioClient.verify.v2.services(VERIFY_SERVICE_SID)
+      .verifications.create({ to: phone, channel: 'sms' });
+    sendJson(res, 200, { status: verification.status });
+  } catch (err) {
+    console.error('[sms/send] Erreur Twilio:', err.message);
+    sendJson(res, 500, { error: "Impossible d'envoyer le SMS pour le moment." });
+  }
+}
+
+async function handleSmsVerify(req, res) {
+  let body;
+  try { body = await readJsonBody(req); } catch { return sendJson(res, 400, { approved: false, error: 'Requête invalide.' }); }
+  const phone = toE164(body.tel);
+  const code = String(body.code || '').trim();
+  if (!phone || !/^\d{4,10}$/.test(code)) return sendJson(res, 400, { approved: false, error: 'Requête invalide.' });
+  if (!twilioClient || !VERIFY_SERVICE_SID) return sendJson(res, 500, { approved: false, error: 'Service SMS non configuré sur le serveur.' });
+  try {
+    const check = await twilioClient.verify.v2.services(VERIFY_SERVICE_SID)
+      .verificationChecks.create({ to: phone, code });
+    sendJson(res, 200, { approved: check.status === 'approved' });
+  } catch (err) {
+    // Code expiré/inexistant -> Twilio renvoie une erreur : on traite comme "refusé"
+    sendJson(res, 200, { approved: false });
+  }
+}
+
+// --------------------------------------------
+// Serveur HTTP (sert les pages + les routes SMS)
 // --------------------------------------------
 const MIME = { '.html':'text/html; charset=utf-8', '.js':'application/javascript', '.css':'text/css', '.json':'application/json', '.jpg':'image/jpeg', '.jpeg':'image/jpeg', '.png':'image/png', '.webp':'image/webp', '.gif':'image/gif', '.svg':'image/svg+xml', '.mp4':'video/mp4', '.webm':'video/webm', '.mov':'video/quicktime', '.mp3':'audio/mpeg', '.ico':'image/x-icon' };
 
 const server = http.createServer((req, res) => {
   const urlPath = decodeURIComponent((req.url || '/').split('?')[0]);
+
+  // ---- Routes SMS (API) ----
+  if (req.method === 'POST' && urlPath === '/api/sms/send') { handleSmsSend(req, res); return; }
+  if (req.method === 'POST' && urlPath === '/api/sms/verify') { handleSmsVerify(req, res); return; }
+
   let fileName = null;
   if (urlPath === '/' || urlPath === '/borne') fileName = PAGES.borne;
   else if (urlPath === '/cuisine') fileName = PAGES.cuisine;
   else if (urlPath === '/caisse') fileName = PAGES.caisse;
+  else if (urlPath === '/commander' || urlPath === '/app') fileName = PAGES.app;
 
   // Pages HTML
   if (fileName) {
@@ -125,24 +233,35 @@ wss.on('connection', (ws) => {
         break;
       }
 
-      // ---- Borne : nouvelle commande ----
+      // ---- Borne / Site web : nouvelle commande ----
       case 'NEW_ORDER': {
         orderCounter++;
         totalToday++;
         const items = Array.isArray(msg.items) ? msg.items : [];
         let total = Number(msg.total);
         if (!total || isNaN(total)) total = computeTotal(items);
+        const paid = !!msg.paid;                 // true si payé en ligne (Apple Pay / carte) avant envoi
+        const payment = msg.payment || null;      // 'apple_pay' | 'carte_ligne' | 'sur_place' | null
         const newOrder = {
           id: Date.now(),
           num: String(orderCounter).padStart(2, '0'),
           items, total,
           status: 'attente',   // arrive dans "À accepter"
-          paid: false,
+          paid,
+          payment,
+          client: msg.client || null,   // { prenom, tel } si envoyé par le site
+          source: msg.source || 'borne',
           createdAt: Date.now()
         };
         orders.push(newOrder);
-        console.log(`🆕 #${newOrder.num} — ${items.length} art. — ${total.toFixed(2)}€`);
+        console.log(`🆕 #${newOrder.num} — ${items.length} art. — ${total.toFixed(2)}€${paid ? ' (payée: ' + payment + ')' : ''}`);
         broadcast({ type: 'NEW_ORDER', order: newOrder, totalToday });
+        // Si déjà payée en ligne, on l'ajoute aussi aux encaissements du jour
+        if (paid) {
+          encaissees.unshift(newOrder);
+          totalEncaisse += total;
+          broadcast({ type: 'ENCAISSE', id: newOrder.id, order: newOrder, totalEncaisse });
+        }
         break;
       }
 
@@ -279,8 +398,10 @@ server.listen(PORT, () => {
   console.log('📄 Fichiers HTML détectés :');
   fs.readdirSync(__dirname).filter(f => f.toLowerCase().endsWith('.html')).forEach(f => console.log('   - ' + f));
   console.log('\n🔗 Routes :');
-  console.log('   📱 /borne   →', PAGES.borne   || '❌ AUCUN');
-  console.log('   🍳 /cuisine →', PAGES.cuisine || '❌ AUCUN');
-  console.log('   💳 /caisse  →', PAGES.caisse  || '❌ AUCUN');
+  console.log('   📱 /borne     →', PAGES.borne   || '❌ AUCUN');
+  console.log('   🍳 /cuisine   →', PAGES.cuisine || '❌ AUCUN');
+  console.log('   💳 /caisse    →', PAGES.caisse  || '❌ AUCUN');
+  console.log('   🌐 /commander →', PAGES.app     || '❌ AUCUN');
+  console.log('   📩 SMS        →', (twilioClient && VERIFY_SERVICE_SID) ? '✅ configuré' : '⚠️  non configuré (voir .env)');
   console.log('');
 });
